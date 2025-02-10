@@ -1,0 +1,12 @@
+Componente	Tecnología
+Lenguaje	Java, Spring Boot
+API Gateway	Spring Cloud Gateway
+Service Discovery	Eureka
+Configuración	Spring Cloud Config
+Mensajería	RabbitMQ / Kafka
+Seguridad	JWT + OAuth2
+Bases de datos	PostgreSQL, MongoDB y MySQL
+Contenedores	Docker
+Orquestación	Kubernetes
+Monitoreo	Prometheus + Grafana
+Pagos	Stripe API

@@ -1,0 +1,15 @@
+├── api-gateway/               # API Gateway (Spring Cloud Gateway)
+├── service-registry/          # Service Discovery (Eureka)
+├── config-server/             # Configuración centralizada (Spring Cloud Config)
+├── microservices/             # Carpeta con todos los microservicios
+│   ├── user-service/          # Gestión de usuarios (clientes, empleados)
+│   ├── menu-service/          # Gestión del menú y productos
+│   ├── order-service/         # Gestión de pedidos en el restaurante
+│   ├── payment-service/       # Procesamiento de pagos
+│   ├── reservation-service/   # Gestión de reservas de mesas
+│   ├── delivery-service/      # Servicio de envío de pedidos a domicilio
+│   ├── notification-service/  # Notificaciones (email, SMS, push)
+│   ├── review-service/        # Gestión de reseñas y calificaciones
+├── monitoring/                # Herramientas de monitoreo (Prometheus, Grafana)
+├── docker-compose.yml         # Configuración para ejecutar los microservicios con Docker
+└── README.md                  # Documentación del proyecto
