@@ -1,0 +1,15 @@
+target/
+*.jar
+*.war
+
+.env
+
+logs/
+*.log
+hs_err_pid*
+*.swp
+
+.idea/
+.vscode/
+*.iml
+*.class

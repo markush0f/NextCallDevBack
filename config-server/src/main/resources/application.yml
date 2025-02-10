@@ -1,0 +1,15 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    active: dev
+  cloud:
+    config:
+      profile: dev
+      server:
+        git:
+          uri: file:///C:/Users/abram/Documents/GestionRestaurantes/git-local-config
+          clone-on-start: true
