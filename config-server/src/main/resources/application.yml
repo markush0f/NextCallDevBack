@@ -12,4 +12,5 @@ spring:
       server:
         git:
           uri: file:///C:/Users/abram/Documents/GestionRestaurantes/git-local-config
+          default-label: master
           clone-on-start: true
