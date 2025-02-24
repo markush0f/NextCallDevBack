@@ -1,0 +1,14 @@
+FROM openjdk:21-jdk-slim
+
+# Cambiar el directorio de trabajo a /app/config-server
+WORKDIR /app/config-server
+
+# Copiar el archivo JAR al directorio de trabajo
+COPY ./target/config-server-0.0.1-SNAPSHOT.jar /app/config-server/config-service1.jar
+
+# Exponer el puerto 8888
+EXPOSE 8888
+
+# Ejecutar la aplicación Java
+ENTRYPOINT ["java", "-jar", "/app/config-server/config-service1.jar"]
+

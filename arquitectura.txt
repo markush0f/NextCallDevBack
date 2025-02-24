@@ -9,7 +9,8 @@
 │   ├── reservation-service/   # Gestión de reservas de mesas
 │   ├── delivery-service/      # Servicio de envío de pedidos a domicilio
 │   ├── notification-service/  # Notificaciones (email, SMS, push)
-│   ├── review-service/        # Gestión de reseñas y calificaciones
+│   ├── review-service/	       # Gestión de reseñas y calificaciones
+    ├── restaurant-service/	       # Gestion de restaurantes
 ├── monitoring/                # Herramientas de monitoreo (Prometheus, Grafana)
 ├── docker-compose.yml         # Configuración para ejecutar los microservicios con Docker
 └── README.md                  # Documentación del proyecto

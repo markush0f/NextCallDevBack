@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  config-server:
+    build:
+      context: ./config-server
+      dockerfile: Dockerfile
+    ports:
+      - "8888:8888"
+    networks:
+      - mi-red
+    volumes:
+      - ./config-server:/app/config-server-volume
+
+  service-registry:
+    build:
+      context: ./service-registry
+      dockerfile: Dockerfile
+    ports:
+      - "8761:8761"
+    depends_on:
+      - config-server
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+    networks:
+      - mi-red
+    volumes:
+      - ./service-registry:/app/service-registry-volume
+  
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - service-registry
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+    networks:
+      - mi-red
+    volumes:
+      - ./api-gateway:/app/api-gateway-volume
+
+networks:
+  mi-red:
+    driver: bridge

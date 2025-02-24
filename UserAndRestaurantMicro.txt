@@ -1,0 +1,3 @@
+User Service (user-service) → Gestiona autenticación y usuarios (clientes y cuentas de restaurantes).
+Restaurant Service (restaurant-service) → Gestiona la información de los restaurantes.
+Order Service (order-service) → Maneja pedidos y relaciona clientes con restaurantes.
