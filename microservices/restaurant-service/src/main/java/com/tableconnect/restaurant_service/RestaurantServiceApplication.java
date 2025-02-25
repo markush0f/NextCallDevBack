@@ -1,13 +1,13 @@
-package com.tableconnect.user_service;
+package com.tableconnect.restaurant_service;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class UserServiceApplication {
+public class RestaurantServiceApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(UserServiceApplication.class, args);
+		SpringApplication.run(RestaurantServiceApplication.class, args);
 	}
 
 }
