@@ -11,8 +11,6 @@ services:
       - mi-red
     volumes:
       - ./config-server:/app/config-server-volume
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
 
   service-registry:
     build:
