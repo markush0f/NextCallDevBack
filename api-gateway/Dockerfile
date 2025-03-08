@@ -15,4 +15,4 @@ RUN chmod +x /app/wait-for-it.sh
 EXPOSE 8080
 
 # Esperar a naming-service en el puerto 8761 antes de ejecutar el gateway
-ENTRYPOINT ["/app/wait-for-it.sh", "naming-service", "8761", "--", "java", "-jar", "/app/gateway-service/api-gateway-0.0.1-SNAPSHOT.jar"]
+ENTRYPOINT ["/app/wait-for-it.sh", "service-registry", "8761", "--", "java", "-jar", "/app/gateway-service/api-gateway-0.0.1-SNAPSHOT.jar"]
