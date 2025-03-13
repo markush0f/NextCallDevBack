@@ -16,7 +16,9 @@ public class WebSecurityConfig {
 	    return http
 	            .csrf(ServerHttpSecurity.CsrfSpec::disable)
 	            .authorizeExchange(exchanges -> exchanges
-	                    .pathMatchers("/user/**").permitAll()  
+	                    .pathMatchers("/user/**").permitAll()
+	                    .pathMatchers("/meeting/**").permitAll()
+	                    .pathMatchers("/fallback/**").permitAll()
 	                    .anyExchange().authenticated()       
 	            )
 	            .build();
