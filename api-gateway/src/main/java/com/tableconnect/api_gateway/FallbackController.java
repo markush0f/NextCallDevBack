@@ -14,7 +14,7 @@ public class FallbackController {
     
     @GetMapping
     public ResponseEntity<String> fallback() {
-        String errorMessage = "Ocurrió un error inesperado";
+        String errorMessage = "Microservicio no responde";
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorMessage);
     }
 }

@@ -7,10 +7,14 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 
 import com.nextcalldev.meeting_service.models.entities.Meeting;
+import com.nextcalldev.meeting_service.models.entities.MeetingParticipant;
 
-public interface MeetingRepository extends CrudRepository<Meeting, Long>{
+public interface MeetingRepository extends CrudRepository<Meeting, Long> {
+
+    @Query("SELECT m FROM Meeting m WHERE m.hostUserId = :hostUserId")
+    List<Meeting> findByHostUserId(@Param("hostUserId") Long hostUserId);
     
-    @Query("SELECT m FROM Meeting m WHERE :userId MEMBER OF m.participantIds")
-    List<Meeting> findByParticipantUserId(@Param("userId") Long userId);
+//    List<MeetingParticipant> findByParticipantUserId(Long participantUserId);
+
 
 }

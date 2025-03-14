@@ -10,7 +10,7 @@ public interface IMeetingService {
 	
 	 public MeetingResponseDto createMeeting(CreateMeetingDto createMeetingDto, Long userId);
 	 
-	 public List<MeetingResponseDto> findMeetingsByUserId(Long userId);
+	 public List<MeetingResponseDto> findMeetingsByHostUserId(Long userId);
 	 
 	 public MeetingResponseDto findMeetingById(Long id);
 
