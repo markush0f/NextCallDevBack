@@ -17,6 +17,11 @@ spring:
           uri: lb://meeting-service
           predicates:
             - Path=/meeting/**
+        - id:
+          uri: lb:ws://meeting-service
+          predicates:
+          - Path=/ws/meeting/**
+          - Header=Connection, Upgrade
           filters:
             - name: CircuitBreaker
               args:

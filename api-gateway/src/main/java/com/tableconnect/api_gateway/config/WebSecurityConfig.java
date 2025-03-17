@@ -18,6 +18,7 @@ public class WebSecurityConfig {
 	            .authorizeExchange(exchanges -> exchanges
 	                    .pathMatchers("/user/**").permitAll()
 	                    .pathMatchers("/meeting/**").permitAll()
+	                    .pathMatchers("/ws/**").permitAll()
 	                    .pathMatchers("/fallback/**").permitAll()
 	                    .anyExchange().authenticated()       
 	            )
