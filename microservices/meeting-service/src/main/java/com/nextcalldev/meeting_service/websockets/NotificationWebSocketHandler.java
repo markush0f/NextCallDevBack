@@ -1,5 +1,6 @@
 package com.nextcalldev.meeting_service.websockets;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import org.springframework.stereotype.Component;
@@ -10,31 +11,36 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 @Component
 public class NotificationWebSocketHandler extends TextWebSocketHandler {
-    private static final CopyOnWriteArraySet<WebSocketSession> sessions = new CopyOnWriteArraySet<>();
-    
-    @Override
-    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        sessions.add(session);
-        System.out.println("Nueva conexión para notificaciones: " + session.getId());
-    }
+    private final ConcurrentHashMap<Long, CopyOnWriteArraySet<WebSocketSession>> meetingNotifications = new ConcurrentHashMap<>();
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-        sessions.remove(session);
+        meetingNotifications.forEach((meetingId, sessions) -> {
+            sessions.remove(session);
+            if (sessions.isEmpty()) {
+                meetingNotifications.remove(meetingId);
+            }
+        });
         System.out.println("Conexión cerrada para notificaciones: " + session.getId());
     }
 
-    // Enviamos notificaciones a todos los clientes conectados
-    public void sendNotification(String message) {
-        for (WebSocketSession session : sessions) {
-            if (session.isOpen()) {
-                try {
-                    session.sendMessage(new TextMessage(message));
-                } catch (Exception e) {
-                    e.printStackTrace();
+    public void subscribeUserToMeetingNotifications(Long meetingId, WebSocketSession session) {
+        meetingNotifications.computeIfAbsent(meetingId, k -> new CopyOnWriteArraySet<>()).add(session);
+        System.out.println("Usuario suscrito a notificaciones de la reunión: " + meetingId);
+    }
+
+    public void sendNotification(Long meetingId, String message) {
+        CopyOnWriteArraySet<WebSocketSession> subscribers = meetingNotifications.get(meetingId);
+        if (subscribers != null) {
+            for (WebSocketSession session : subscribers) {
+                if (session.isOpen()) {
+                    try {
+                        session.sendMessage(new TextMessage(message));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
     }
-
 }

@@ -19,12 +19,10 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 
 	private final NotificationWebSocketHandler notificationWebSocketHandler;
 
-	public MeetingWebSocketHandler(
-			NotificationWebSocketHandler notificationWebSocketHandler) {
+	public MeetingWebSocketHandler(NotificationWebSocketHandler notificationWebSocketHandler) {
 		this.notificationWebSocketHandler = notificationWebSocketHandler;
 	}
 
-	// Almacenar sesiones por reunión
 	private final ConcurrentHashMap<Long, CopyOnWriteArraySet<UserSession>> meetings = new ConcurrentHashMap<>();
 
 	// Manejar nuevas conexiones WebSocket
@@ -36,20 +34,19 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 		meetings.computeIfAbsent(meetingId, k -> new CopyOnWriteArraySet<>())
 				.add(new UserSession(userId, session, UserRole.PARTICIPANT));
 
-		System.out.println(
-				"Usuario " + userId + " conectado a la reunión: " + meetingId);
-		notificationWebSocketHandler.sendNotification(
-				userId + " se ha unido a la reunión " + meetingId);
+		System.out.println("Usuario " + userId + " conectado a la reunión: " + meetingId);
+
+		notificationWebSocketHandler.subscribeUserToMeetingNotifications(meetingId, session);
+		notificationWebSocketHandler.sendNotification(meetingId, userId + " se ha unido a la reunión " + meetingId);
+
 	}
 
 	// Manejar mensajes entre los usuarios de la reunión
 	@Override
-	protected void handleTextMessage(WebSocketSession session,
-			TextMessage message) throws IOException {
+	protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
 		Long meetingId = getMeetingId(session);
 
-		for (UserSession userSession : meetings.getOrDefault(meetingId,
-				new CopyOnWriteArraySet<>())) {
+		for (UserSession userSession : meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>())) {
 			if (userSession.getSession().isOpen()) {
 				userSession.getSession().sendMessage(message);
 			}
@@ -58,20 +55,18 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 
 	// Manejar desconexiones de los usuarios
 	@Override
-	public void afterConnectionClosed(WebSocketSession session,
-			CloseStatus status) {
+	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
 		Long meetingId = getMeetingId(session);
 		Long userId = getUserId(session);
 
-		meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>()).removeIf(
-				userSession -> userSession.getSession().equals(session));
+		meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>())
+				.removeIf(userSession -> userSession.getSession().equals(session));
 
 		if (meetings.get(meetingId).isEmpty()) {
 			meetings.remove(meetingId);
 		}
 
-		System.out.println("Usuario " + userId + " desconectado de la reunión: "
-				+ meetingId);
+		System.out.println("Usuario " + userId + " desconectado de la reunión: " + meetingId);
 	}
 
 	private Long getMeetingId(WebSocketSession session) {
@@ -81,8 +76,7 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 			String[] pathParts = session.getUri().getPath().split("/");
 			return Long.parseLong(pathParts[3]);
 		} catch (Exception e) {
-			throw new IllegalArgumentException(
-					"ID de reunión no válido en la URI", e);
+			throw new IllegalArgumentException("ID de reunión no válido en la URI", e);
 		}
 	}
 
@@ -93,8 +87,7 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 			String[] pathParts = session.getUri().getPath().split("/");
 			return Long.parseLong(pathParts[4]);
 		} catch (Exception e) {
-			throw new IllegalArgumentException(
-					"ID de usuario no válido en la URI", e);
+			throw new IllegalArgumentException("ID de usuario no válido en la URI", e);
 		}
 	}
 }
