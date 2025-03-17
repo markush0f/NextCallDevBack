@@ -11,34 +11,47 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-// TextWebSocketHandler → Nos permite manejar mensajes de texto en WebSockets.
+import com.nextcalldev.meeting_service.common.UserRole;
+import com.nextcalldev.meeting_service.models.entities.UserSession;
+
 @Component
 public class MeetingWebSocketHandler extends TextWebSocketHandler {
 
+	private final NotificationWebSocketHandler notificationWebSocketHandler;
+
+	public MeetingWebSocketHandler(
+			NotificationWebSocketHandler notificationWebSocketHandler) {
+		this.notificationWebSocketHandler = notificationWebSocketHandler;
+	}
+
 	// Almacenar sesiones por reunión
-	private final ConcurrentHashMap<String, CopyOnWriteArraySet<WebSocketSession>> meetings = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<Long, CopyOnWriteArraySet<UserSession>> meetings = new ConcurrentHashMap<>();
 
 	// Manejar nuevas conexiones WebSocket
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) {
-		// Cuando un usuario se conecta, obtenemos el meetingId desde la URL.
-		String meetingId = getMeetingId(session);
+		Long meetingId = getMeetingId(session);
+		Long userId = getUserId(session);
+
 		meetings.computeIfAbsent(meetingId, k -> new CopyOnWriteArraySet<>())
-				.add(session);
-		System.out.println("Usuario conectado a la reunión: " + meetingId);
+				.add(new UserSession(userId, session, UserRole.PARTICIPANT));
+
+		System.out.println(
+				"Usuario " + userId + " conectado a la reunión: " + meetingId);
+		notificationWebSocketHandler.sendNotification(
+				userId + " se ha unido a la reunión " + meetingId);
 	}
 
 	// Manejar mensajes entre los usuarios de la reunión
-	// Se ejecuta cuando un usuario envía un mensaje.
 	@Override
 	protected void handleTextMessage(WebSocketSession session,
 			TextMessage message) throws IOException {
-		String meetingId = getMeetingId(session);
-		for (WebSocketSession s : meetings.getOrDefault(meetingId,
+		Long meetingId = getMeetingId(session);
+
+		for (UserSession userSession : meetings.getOrDefault(meetingId,
 				new CopyOnWriteArraySet<>())) {
-			// Si la conexion esta activa envie el mensaje
-			if (s.isOpen()) {
-				s.sendMessage(message);
+			if (userSession.getSession().isOpen()) {
+				userSession.getSession().sendMessage(message);
 			}
 		}
 	}
@@ -47,16 +60,41 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 	@Override
 	public void afterConnectionClosed(WebSocketSession session,
 			CloseStatus status) {
-		String meetingId = getMeetingId(session);
+		Long meetingId = getMeetingId(session);
+		Long userId = getUserId(session);
+
+		meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>()).removeIf(
+				userSession -> userSession.getSession().equals(session));
+
 		if (meetings.get(meetingId).isEmpty()) {
 			meetings.remove(meetingId);
 		}
-		meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>())
-				.remove(session);
-		System.out.println("Usuario desconectado de la reunión: " + meetingId);
+
+		System.out.println("Usuario " + userId + " desconectado de la reunión: "
+				+ meetingId);
 	}
 
-	private String getMeetingId(WebSocketSession session) {
-		return session.getUri().getPath().split("/ws/meeting/")[1];
+	private Long getMeetingId(WebSocketSession session) {
+		try {
+			String path = session.getUri().getPath();
+			System.out.println("Path: " + path);
+			String[] pathParts = session.getUri().getPath().split("/");
+			return Long.parseLong(pathParts[3]);
+		} catch (Exception e) {
+			throw new IllegalArgumentException(
+					"ID de reunión no válido en la URI", e);
+		}
+	}
+
+	private Long getUserId(WebSocketSession session) {
+		try {
+			String path = session.getUri().getPath();
+			System.out.println("Path: " + path);
+			String[] pathParts = session.getUri().getPath().split("/");
+			return Long.parseLong(pathParts[4]);
+		} catch (Exception e) {
+			throw new IllegalArgumentException(
+					"ID de usuario no válido en la URI", e);
+		}
 	}
 }
