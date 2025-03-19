@@ -14,7 +14,7 @@ public interface MeetingRepository extends CrudRepository<Meeting, Long> {
     @Query("SELECT m FROM Meeting m WHERE m.hostUserId = :hostUserId")
     List<Meeting> findByHostUserId(@Param("hostUserId") Long hostUserId);
     
-//    List<MeetingParticipant> findByParticipantUserId(Long participantUserId);
-
+    @Query("SELECT m FROM Meeting m JOIN m.participants mp WHERE mp.participantUserId = :userId")
+    List<Meeting> findMeetingsByParticipantUserId(@Param("userId") Long userId);
 
 }

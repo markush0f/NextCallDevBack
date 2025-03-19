@@ -25,7 +25,6 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 
 	private final ConcurrentHashMap<Long, CopyOnWriteArraySet<UserSession>> meetings = new ConcurrentHashMap<>();
 
-	// Manejar nuevas conexiones WebSocket
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) {
 		Long meetingId = getMeetingId(session);

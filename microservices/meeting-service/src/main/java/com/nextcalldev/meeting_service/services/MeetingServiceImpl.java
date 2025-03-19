@@ -52,4 +52,12 @@ public class MeetingServiceImpl implements IMeetingService {
 		return meetingMapper.meetingToMeetingResponseDto(meeting);
 	}
 
+	@Override
+	public List<MeetingResponseDto> findMeetingsByUserId(Long userId) {
+		List<Meeting> meetings = meetingRepository
+				.findMeetingsByParticipantUserId(userId);
+		return meetings.stream().map(meetingMapper::meetingToMeetingResponseDto)
+			.collect(Collectors.toList());
+	}
+
 }

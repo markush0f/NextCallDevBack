@@ -43,6 +43,12 @@ public class MeetingController {
 		return ResponseEntity
 				.ok(meetingServiceImpl.findMeetingsByHostUserId(hostId));
 	}
+	
+	@GetMapping("participant/{userId}")
+	public ResponseEntity<?> findMeetingsbyUserId(@PathVariable() Long userId){
+		return ResponseEntity
+				.ok(meetingServiceImpl.findMeetingsByUserId(userId));
+	}
 
 	@GetMapping("check")
 	public String check() {

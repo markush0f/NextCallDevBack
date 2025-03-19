@@ -13,5 +13,7 @@ public interface IMeetingService {
 	 public List<MeetingResponseDto> findMeetingsByHostUserId(Long userId);
 	 
 	 public MeetingResponseDto findMeetingById(Long id);
+	 
+	 public List<MeetingResponseDto> findMeetingsByUserId(Long userId);
 
 }
