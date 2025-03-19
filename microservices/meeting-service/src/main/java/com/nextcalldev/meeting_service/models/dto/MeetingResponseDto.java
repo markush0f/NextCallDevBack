@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.nextcalldev.meeting_service.common.MeetingStatus;
+import com.nextcalldev.meeting_service.models.entities.MeetingParticipant;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,5 +33,5 @@ public class MeetingResponseDto {
 
     private MeetingStatus status;
 
-    private List<String> participantIds;
+    private List<Long> participantIds;
 }
