@@ -35,7 +35,7 @@ resilience4j:
         registerHealthIndicator: true
         slidingWindowSize: 10
         failureRateThreshold: 50
-        waitDurationInOpenState: 10000ms
+        waitDurationInOpenState: 5000ms
         permittedNumberOfCallsInHalfOpenState: 2
         automaticTransitionFromOpenToHalfOpenEnabled: true
 

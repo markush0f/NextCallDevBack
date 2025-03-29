@@ -1,6 +1,6 @@
 spring:
   application:
-    name: meeting-service
+    name: signaling-service
   config:
     import: "configserver:" 
   cloud:

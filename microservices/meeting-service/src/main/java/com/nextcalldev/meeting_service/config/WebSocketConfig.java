@@ -24,10 +24,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
 	@Override
 	public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
 		registry.addHandler(meetingWebSocketHandler, "/ws/meeting/{meetingId}/{userId}")
-				.setAllowedOrigins("http://localhost:3000")
-				.withSockJS();
+				.setAllowedOrigins("*");
 		registry.addHandler(notificationWebSocketHandler, "/ws/notifications")
-				.setAllowedOrigins("http://localhost:3000")
-				.withSockJS();
+				.setAllowedOrigins("*");
 	}
 }
