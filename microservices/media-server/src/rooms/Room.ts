@@ -1,6 +1,6 @@
 import * as mediasoup from 'mediasoup';
-import Peer from './Peer.js';
 import { WebSocket } from 'ws';
+import Peer from './Peer.js';
 
 export default class Room {
   private peers: Map<string, Peer> = new Map();

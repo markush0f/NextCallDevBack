@@ -1,13 +1,17 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "strict": true,
-    "esModuleInterop": true,
+    "target": "ES2020",                      // Modern JavaScript
+    "module": "ESNext",                      // ESM para import/export modernos
+    "moduleResolution": "Node",              // Para importar módulos por path como en Node
+    "outDir": "./dist",                      // Carpeta de salida si compilas con tsc
+    "rootDir": "./src",                      // Carpeta principal del código fuente
+    "strict": true,                          // Tipado estricto
+    "esModuleInterop": true,                 // Permite importar módulos CommonJS
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "outDir": "./dist"
+    "skipLibCheck": true,                    // Evita chequeos en node_modules
+    "resolveJsonModule": true,               // Si necesitas importar archivos .json
+    "allowSyntheticDefaultImports": true     // Para hacer import por defecto de CJS
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test WebSocket Gateway</title>
+</head>
+<body>
+  <h2>Test WebSocket a través del API Gateway</h2>
+  <button onclick="sendGetRtpCapabilities()">Obtener RTP Capabilities</button>
+  <pre id="log"></pre>
+
+  <script>
+    const meetingId = 1;
+    const userId = 1;
+    const socket = new WebSocket("ws://localhost:8084/ws/meeting/1/1");
+
+    socket.onopen = () => {
+      log("🟢 WebSocket conectado (vía API Gateway)");
+
+      // Enviar mensaje de prueba automáticamente
+      sendGetRtpCapabilities();
+    };
+    socket.onmessage = (event) => {
+  try {
+    const data = JSON.parse(event.data);
+    log("📩 Respuesta del servidor:\n" + JSON.stringify(data, null, 2));
+  } catch (err) {
+    log("❌ Mensaje no es JSON válido:\n" + event.data);
+  }
+};
+
+
+    socket.onerror = (err) => {
+      log("❌ Error WebSocket: " + err.message);
+    };
+
+    socket.onclose = () => {
+      log("🔴 Conexión cerrada");
+    };
+
+    function sendGetRtpCapabilities() {
+      if (socket.readyState !== WebSocket.OPEN) {
+        log("⚠️ WebSocket aún no está listo");
+        return;
+      }
+
+      const message = {
+        type: "get-rtp-capabilities",
+        sender: userId,
+        target: 0,
+        payload: {}
+      };
+
+      socket.send(JSON.stringify(message));
+      log("📤 Enviado: get-rtp-capabilities");
+    }
+
+    function log(text) {
+      const logElement = document.getElementById("log");
+      logElement.textContent += text + "\n";
+    }
+  </script>
+</body>
+</html>

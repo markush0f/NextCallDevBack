@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import * as mediasoup from 'mediasoup';
 import { v4 as uuidv4 } from 'uuid';
-import Room from './rooms/Room';
+import Room from './rooms/Room.js';
 
 const rooms = new Map<string, Room>();
 let worker: mediasoup.types.Worker;
@@ -12,7 +12,7 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
         kind: 'audio',
         mimeType: 'audio/opus',
         clockRate: 48000,
-        channels: 2
+        channels: 2,
     },
     {
         kind: 'video',
