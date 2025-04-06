@@ -1,6 +1,7 @@
 package com.nextcalldev.signaling_service.websockets;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -20,9 +21,12 @@ import com.nextcalldev.signaling_service.models.UserSession;
 public class MeetingWebSocketHandler extends TextWebSocketHandler {
 
     private final NotificationWebSocketHandler notificationWebSocketHandler;
+    private MediaServerClient mediaServerClient;
 
-    public MeetingWebSocketHandler(NotificationWebSocketHandler notificationWebSocketHandler) {
+
+    public MeetingWebSocketHandler(NotificationWebSocketHandler notificationWebSocketHandler, MediaServerClient mediaServerClient) {
 	this.notificationWebSocketHandler = notificationWebSocketHandler;
+	this.mediaServerClient = mediaServerClient;
     }
 
     private final ConcurrentHashMap<Long, CopyOnWriteArraySet<UserSession>> meetings = new ConcurrentHashMap<>();
@@ -48,13 +52,31 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
         ObjectMapper mapper = new ObjectMapper();
         SignalMessageDto signal = mapper.readValue(message.getPayload(), SignalMessageDto.class);
 
+        //Comprobamos si es un mensaje de WebRTC/media
+        if (isMediaAction(signal.getType())) {
+            try {
+                String response = mediaServerClient.sendMessageAndWait(message.getPayload());
+
+                if (response != null) {
+                    session.sendMessage(new TextMessage(response));
+                    System.out.println("Acción media enviada al media-server: " + signal.getType());
+                } else {
+                    session.sendMessage(new TextMessage("{\"error\":\"Sin respuesta del media-server\"}"));
+                }
+            } catch (Exception e) {
+                session.sendMessage(new TextMessage("{\"error\":\"Error al comunicar con media-server\"}"));
+                e.printStackTrace();
+            }
+            return;
+        }
+
         for (UserSession userSession : meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>())) {
             if (userSession.getUserId().equals(signal.getTarget()) && userSession.getSession().isOpen()) {
-                userSession.getSession().sendMessage(message); 
+                userSession.getSession().sendMessage(message);
             }
         }
 
-        System.out.println("Mensaje de tipo " + signal.getType() + " enviado de " + signal.getSender() + " a " + signal.getTarget());
+//        System.out.println("Mensaje de tipo " + signal.getType() + " enviado de " + signal.getSender() + " a " + signal.getTarget());
     }
 
 
@@ -94,4 +116,14 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 	    throw new IllegalArgumentException("ID de usuario no válido en la URI", e);
 	}
     }
+    
+    private boolean isMediaAction(String type) {
+	    return Set.of(
+	        "get-rtp-capabilities",
+	        "create-transport",
+	        "connect-transport",
+	        "produce",
+	        "consume"
+	    ).contains(type);
+	}
 }
