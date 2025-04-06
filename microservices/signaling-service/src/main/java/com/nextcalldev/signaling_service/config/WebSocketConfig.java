@@ -1,12 +1,13 @@
-package com.nextcalldev.meeting_service.config;
+package com.nextcalldev.signaling_service.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
-import com.nextcalldev.meeting_service.websockets.MeetingWebSocketHandler;
-import com.nextcalldev.meeting_service.websockets.NotificationWebSocketHandler;
+import com.nextcalldev.signaling_service.websockets.MeetingWebSocketHandler;
+import com.nextcalldev.signaling_service.websockets.NotificationWebSocketHandler;
+
 
 @Configuration
 @EnableWebSocket

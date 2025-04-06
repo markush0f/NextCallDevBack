@@ -1,4 +1,4 @@
-package com.nextcalldev.meeting_service.common;
+package com.nextcalldev.signaling_service.common;
 
 public enum UserRole {
 	HOST,

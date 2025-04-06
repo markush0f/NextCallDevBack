@@ -1,4 +1,4 @@
-package com.nextcalldev.meeting_service.websockets;
+package com.nextcalldev.signaling_service.websockets;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;

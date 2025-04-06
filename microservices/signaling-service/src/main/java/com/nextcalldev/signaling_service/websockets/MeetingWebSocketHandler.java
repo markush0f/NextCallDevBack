@@ -1,7 +1,6 @@
-package com.nextcalldev.meeting_service.websockets;
+package com.nextcalldev.signaling_service.websockets;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -11,8 +10,11 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import com.nextcalldev.meeting_service.common.UserRole;
-import com.nextcalldev.meeting_service.models.entities.UserSession;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nextcalldev.signaling_service.common.UserRole;
+import com.nextcalldev.signaling_service.models.SignalMessageDto;
+import com.nextcalldev.signaling_service.models.UserSession;
+
 
 @Component
 public class MeetingWebSocketHandler extends TextWebSocketHandler {
@@ -39,20 +41,23 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 	notificationWebSocketHandler.sendNotification(meetingId, userId + " se ha unido a la reunión " + meetingId);
     }
 
-    // Manejar mensajes entre los usuarios de la reunión
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
-	Long meetingId = getMeetingId(session);
-	Long userId = getUserId(session);
+        Long meetingId = getMeetingId(session);
 
-	for (UserSession userSession : meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>())) {
-	    if (userSession.getSession().isOpen() && !userSession.getSession().equals(session)) {
-		userSession.getSession().sendMessage(message);
-	    }
-	}
+        ObjectMapper mapper = new ObjectMapper();
+        SignalMessageDto signal = mapper.readValue(message.getPayload(), SignalMessageDto.class);
+
+        for (UserSession userSession : meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>())) {
+            if (userSession.getUserId().equals(signal.getTarget()) && userSession.getSession().isOpen()) {
+                userSession.getSession().sendMessage(message); 
+            }
+        }
+
+        System.out.println("Mensaje de tipo " + signal.getType() + " enviado de " + signal.getSender() + " a " + signal.getTarget());
     }
 
-    // Manejar desconexiones de los usuarios
+
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
 	Long meetingId = getMeetingId(session);
