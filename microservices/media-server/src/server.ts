@@ -1,8 +1,14 @@
-import { createServer } from 'http';
+import express from 'express';
+import http from 'http';
 import { WebSocketServer } from 'ws';
 import * as mediasoup from 'mediasoup';
 import { v4 as uuidv4 } from 'uuid';
 import Room from './rooms/Room.js';
+
+const app = express();
+app.use(express.json()); // ✅ Parsear JSON
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
 const rooms = new Map<string, Room>();
 let worker: mediasoup.types.Worker;
@@ -22,45 +28,64 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
 ];
 
 (async () => {
-    // El worker es el proceso que maneja todo lo que tiene que ver con transmisión de media.
     worker = await mediasoup.createWorker();
-
     console.log('Mediasoup worker started');
 
-    // Crea un servidor WebSocket
-    const httpServer = createServer();
-    const wss = new WebSocketServer({ server: httpServer });
+    // ✅ Crear o recuperar la sala
+    function getOrCreateRoom(roomId: string): Room {
+        let room = rooms.get(roomId);
+        if (!room) {
+            room = new Room(worker, mediaCodecs);
+            rooms.set(roomId, room);
+            console.log(`Sala creada: ${roomId}`);
+        }
+        return room;
+    }
 
-    wss.on('connection', (ws) => {
-        const clientId = uuidv4();
-        console.log(`Cliente conectado: ${clientId}`);
+    // --- Endpoints HTTP para media-server ---
 
-        ws.on('message', async (message) => {
-            const { action, roomId, payload } = JSON.parse(message.toString());
-
-            let room = rooms.get(roomId);
-            if (!room) {
-                room = new Room(worker, mediaCodecs);
-                rooms.set(roomId, room);
-                console.log(`Sala creada: ${roomId}`);
-            }
-
-            const response = await room.handleAction(action, payload, clientId, ws);
-            if (response) {
-                ws.send(JSON.stringify({ action, data: response }));
-            }
-        });
-
-        ws.on('close', () => {
-            for (const room of rooms.values()) {
-                room.removePeer(clientId);
-            }
-            console.log(`🔌 Cliente desconectado: ${clientId}`);
-        });
+    app.post('/get-rtp-capabilities', async (req, res) => {
+        const { roomId } = req.body;
+        const room = getOrCreateRoom(roomId);
+        res.json(room['router'].rtpCapabilities);
     });
 
+    app.post('/create-transport', async (req, res) => {
+        const { roomId, senderId } = req.body;
+        const room = getOrCreateRoom(roomId);
+        const fakeSocket: any = { send: () => {} }; // No usamos socket real
+        const peer = await room.handleAction('create-transport', {}, String(senderId), fakeSocket);
+        res.json(peer);
+    });
 
-    httpServer.listen(PORT, () => {
-        console.log(`Media server WebSocket escuchando en ws://localhost:3001 ${PORT}`);
+    app.post('/connect-transport', async (req, res) => {
+        const { roomId, payload } = req.body;
+        const room = getOrCreateRoom(roomId);
+        const { transportId, dtlsParameters } = payload;
+        const fakeSocket: any = { send: () => {} };
+        const response = await room.handleAction('connect-transport', { transportId, dtlsParameters }, "dummy", fakeSocket);
+        res.json(response);
+    });
+
+    app.post('/produce', async (req, res) => {
+        const { roomId, payload } = req.body;
+        const room = getOrCreateRoom(roomId);
+        const { transportId, kind, rtpParameters } = payload;
+        const fakeSocket: any = { send: () => {} };
+        const response = await room.handleAction('produce', { transportId, kind, rtpParameters }, "dummy", fakeSocket);
+        res.json(response);
+    });
+
+    app.post('/consume', async (req, res) => {
+        const { roomId, payload } = req.body;
+        const room = getOrCreateRoom(roomId);
+        const { producerPeerId, producerId, transportId, rtpCapabilities } = payload;
+        const fakeSocket: any = { send: () => {} };
+        const response = await room.handleAction('consume', { producerPeerId, producerId, transportId, rtpCapabilities }, "dummy", fakeSocket);
+        res.json(response);
+    });
+
+    server.listen(PORT, () => {
+        console.log(`🚀 Media server HTTP + WebSocket escuchando en http://localhost:${PORT}`);
     });
 })();

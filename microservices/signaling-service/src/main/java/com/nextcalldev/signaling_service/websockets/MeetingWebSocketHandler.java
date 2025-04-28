@@ -67,14 +67,28 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 
         if (isMediaAction(signal.getType())) {
             try {
+                String response = null;
 
-                ObjectNode originalNode = (ObjectNode) mapper.readTree(message.getPayload());
-                originalNode.set("action", originalNode.get("type"));
-                originalNode.put("roomId", String.valueOf(meetingId));
-                
-                String patchedMessage = mapper.writeValueAsString(originalNode);
-
-                String response = mediaServerClient.sendMessageAndWait(patchedMessage);
+                switch (signal.getType()) {
+                    case "get-rtp-capabilities":
+                        response = mediaServerClient.getRtpCapabilities(String.valueOf(meetingId));
+                        break;
+                    case "create-transport":
+                        response = mediaServerClient.createTransport(String.valueOf(meetingId), signal.getSender());
+                        break;
+                    case "connect-transport":
+                        response = mediaServerClient.connectTransport(String.valueOf(meetingId), signal.getPayload());
+                        break;
+                    case "produce":
+                        response = mediaServerClient.produce(String.valueOf(meetingId), signal.getPayload());
+                        break;
+                    case "consume":
+                        response = mediaServerClient.consume(String.valueOf(meetingId), signal.getPayload());
+                        break;
+                    default:
+                        response = "{\"error\":\"Acción no reconocida\"}";
+                        break;
+                }
 
                 if (response != null) {
                     session.sendMessage(new TextMessage(response));
@@ -82,6 +96,7 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
                 } else {
                     session.sendMessage(new TextMessage("{\"error\":\"Sin respuesta del media-server\"}"));
                 }
+
             } catch (Exception e) {
                 session.sendMessage(new TextMessage("{\"error\":\"Error al comunicar con media-server\"}"));
                 e.printStackTrace();
@@ -89,14 +104,13 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-
         for (UserSession userSession : meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>())) {
             if (userSession.getUserId().equals(signal.getTarget()) && userSession.getSession().isOpen()) {
                 userSession.getSession().sendMessage(message);
             }
         }
-
     }
+
 
 
     @Override

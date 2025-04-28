@@ -1,72 +1,63 @@
 package com.nextcalldev.signaling_service.websockets;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import java.util.Map;
+
 import org.springframework.stereotype.Component;
-
-import java.net.URI;
-import java.util.concurrent.*;
-
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.handshake.ServerHandshake;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 @Component
 public class MediaServerClient {
 
-    private WebSocketClient client;
-    private final BlockingQueue<String> responseQueue = new LinkedBlockingQueue<>();
+    private final WebClient webClient = WebClient.create("http://localhost:3001");
 
-    @PostConstruct
-    public void init() {
-        try {
-            client = new WebSocketClient(new URI("ws://localhost:3001")) {
-                @Override
-                public void onOpen(ServerHandshake handshake) {
-                    System.out.println("Conectado al media-server");
-                }
-
-                @Override
-                public void onMessage(String message) {
-                    responseQueue.offer(message);
-                }
-
-                @Override
-                public void onClose(int code, String reason, boolean remote) {
-                    System.out.println("Desconectado del media-server");
-                }
-
-                @Override
-                public void onError(Exception ex) {
-                    System.out.println(" Error en WebSocket media-server: " + ex.getMessage());
-                }
-            };
-
-            client.connectBlocking();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public String sendMessageAndWait(String message) throws InterruptedException {
-	    for (int i = 0; i < 10; i++) {
-	        if (client.isOpen()) break;
-	        Thread.sleep(200);
-	    }
-
-	    if (!client.isOpen()) {
-	        System.out.println("❌ No se pudo conectar al media-server WebSocket.");
-	        return "{\"error\":\"WebSocket no disponible\"}";
-	    }
-
-	    client.send(message);
-	    return responseQueue.poll(5, TimeUnit.SECONDS);
+    public String getRtpCapabilities(String roomId) {
+	    return webClient.post()
+	            .uri("/get-rtp-capabilities")
+	            .bodyValue(Map.of("roomId", roomId))
+	            .retrieve()
+	            .bodyToMono(String.class)
+	            .block();
 	}
 
+	public String createTransport(String roomId, Long senderId) {
+	    return webClient.post()
+	            .uri("/create-transport")
+	            .bodyValue(Map.of("roomId", roomId, "senderId", senderId))
+	            .retrieve()
+	            .bodyToMono(String.class)
+	            .block();
+	}
 
-    @PreDestroy
-    public void shutdown() {
-        if (client != null && client.isOpen()) {
-            client.close();
-        }
-    }
+	public String connectTransport(String roomId, Object payload) {
+	    return webClient.post()
+	            .uri("/connect-transport")
+	            .bodyValue(Map.of("roomId", roomId, "payload", payload))
+	            .retrieve()
+	            .bodyToMono(String.class)
+	            .block();
+	}
+
+	public String produce(String roomId, Object payload) {
+	    return webClient.post()
+	            .uri("/produce")
+	            .bodyValue(Map.of("roomId", roomId, "payload", payload))
+	            .retrieve()
+	            .bodyToMono(String.class)
+	            .block();
+	}
+
+	public String consume(String roomId, Object payload) {
+	    return webClient.post()
+	            .uri("/consume")
+	            .bodyValue(Map.of("roomId", roomId, "payload", payload))
+	            .retrieve()
+	            .bodyToMono(String.class)
+	            .block();
+	}
+
+    
 }
+
+
+
