@@ -69,7 +69,7 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
             try {
                 String response = null;
 
-                switch (signal.getType()) {
+                    switch (signal.getType()) {
                     case "get-rtp-capabilities":
                         response = mediaServerClient.getRtpCapabilities(String.valueOf(meetingId));
                         break;
@@ -89,6 +89,7 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
                         response = "{\"error\":\"Acción no reconocida\"}";
                         break;
                 }
+
 
                 if (response != null) {
                     session.sendMessage(new TextMessage(response));

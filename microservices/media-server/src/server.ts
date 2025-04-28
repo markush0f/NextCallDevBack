@@ -2,7 +2,6 @@ import express from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import * as mediasoup from 'mediasoup';
-import { v4 as uuidv4 } from 'uuid';
 import Room from './rooms/Room.js';
 
 const app = express();
@@ -42,7 +41,6 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
         return room;
     }
 
-    // --- Endpoints HTTP para media-server ---
 
     app.post('/get-rtp-capabilities', async (req, res) => {
         const { roomId } = req.body;
@@ -52,20 +50,53 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
 
     app.post('/create-transport', async (req, res) => {
         const { roomId, senderId } = req.body;
+    
         const room = getOrCreateRoom(roomId);
-        const fakeSocket: any = { send: () => {} }; // No usamos socket real
-        const peer = await room.handleAction('create-transport', {}, String(senderId), fakeSocket);
-        res.json(peer);
+        const fakeSocket: any = { send: () => {} }; 
+    
+        const peerId = String(senderId);
+    
+        if (!room['peers'].has(peerId)) {
+            room['peers'].set(peerId, new (await import('./rooms/Peer.js')).default(peerId, fakeSocket));
+        }
+    
+        const peer = room['peers'].get(peerId);
+    
+        const transportOptions = await room['router'].createWebRtcTransport({
+            listenIps: [{ ip: '127.0.0.1', announcedIp: undefined }],
+            enableUdp: true,
+            enableTcp: true,
+            preferUdp: true
+        });
+    
+        peer!.addTransport(transportOptions);
+    
+        res.json({
+            id: transportOptions.id,
+            iceParameters: transportOptions.iceParameters,
+            iceCandidates: transportOptions.iceCandidates,
+            dtlsParameters: transportOptions.dtlsParameters
+        });
     });
+    
 
     app.post('/connect-transport', async (req, res) => {
         const { roomId, payload } = req.body;
-        const room = getOrCreateRoom(roomId);
         const { transportId, dtlsParameters } = payload;
-        const fakeSocket: any = { send: () => {} };
-        const response = await room.handleAction('connect-transport', { transportId, dtlsParameters }, "dummy", fakeSocket);
-        res.json(response);
+    
+        const room = getOrCreateRoom(roomId);
+        const peer = room['peers'].values().next().value; 
+    
+        const transport = peer!.transports.get(transportId);
+        if (!transport) {
+            res.status(404).json({ error: 'Transport no encontrado' });
+        }
+    
+        await transport!.connect({ dtlsParameters });
+    
+        res.json({ connected: true });
     });
+    
 
     app.post('/produce', async (req, res) => {
         const { roomId, payload } = req.body;

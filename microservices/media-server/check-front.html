@@ -6,7 +6,11 @@
 </head>
 <body>
   <h2>Test WebSocket a través del API Gateway</h2>
+
   <button onclick="sendGetRtpCapabilities()">Obtener RTP Capabilities</button>
+  <button onclick="sendCreateTransport()">Crear WebRTC Transport</button>
+  <button onclick="sendConnectTransport()">Conectar WebRTC Transport</button>
+
   <pre id="log"></pre>
 
   <script>
@@ -14,21 +18,28 @@
     const userId = 1;
     const socket = new WebSocket("ws://localhost:8084/ws/meeting/1/1");
 
+    let lastTransportId = null; // ⚡ Guardar el transportId después de crearlo
+
     socket.onopen = () => {
       log("🟢 WebSocket conectado (vía API Gateway)");
 
       // Enviar mensaje de prueba automáticamente
       sendGetRtpCapabilities();
     };
-    socket.onmessage = (event) => {
-  try {
-    const data = JSON.parse(event.data);
-    log("📩 Respuesta del servidor:\n" + JSON.stringify(data, null, 2));
-  } catch (err) {
-    log("❌ Mensaje no es JSON válido:\n" + event.data);
-  }
-};
 
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        log("📩 Respuesta del servidor:\n" + JSON.stringify(data, null, 2));
+
+        if (data.action === "create-transport" && data.data.id) {
+          lastTransportId = data.data.id;
+          log("✅ Transport creado y guardado: " + lastTransportId);
+        }
+      } catch (err) {
+        log("❌ Mensaje no es JSON válido:\n" + event.data);
+      }
+    };
 
     socket.onerror = (err) => {
       log("❌ Error WebSocket: " + err.message);
@@ -53,6 +64,58 @@
 
       socket.send(JSON.stringify(message));
       log("📤 Enviado: get-rtp-capabilities");
+    }
+
+    function sendCreateTransport() {
+      if (socket.readyState !== WebSocket.OPEN) {
+        log("⚠️ WebSocket aún no está listo");
+        return;
+      }
+
+      const message = {
+        type: "create-transport",
+        sender: userId,
+        target: 0,
+        payload: {}
+      };
+
+      socket.send(JSON.stringify(message));
+      log("📤 Enviado: create-transport");
+    }
+
+    function sendConnectTransport() {
+      if (socket.readyState !== WebSocket.OPEN) {
+        log("⚠️ WebSocket aún no está listo");
+        return;
+      }
+
+      if (!lastTransportId) {
+        log("⚠️ No hay transportId creado todavía");
+        return;
+      }
+
+      const fakeDtlsParameters = {
+        fingerprints: [
+          {
+            algorithm: "sha-256",
+            value: "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+          }
+        ],
+        role: "auto"
+      };
+
+      const message = {
+        type: "connect-transport",
+        sender: userId,
+        target: 0,
+        payload: {
+          transportId: lastTransportId,
+          dtlsParameters: fakeDtlsParameters
+        }
+      };
+
+      socket.send(JSON.stringify(message));
+      log("📤 Enviado: connect-transport");
     }
 
     function log(text) {
