@@ -5,7 +5,7 @@ import * as mediasoup from 'mediasoup';
 import Room from './rooms/Room.js';
 
 const app = express();
-app.use(express.json());
+app.use(express.json()); // ✅ Parsear JSON
 const server = http.createServer(app);
 
 const rooms = new Map<string, Room>();
@@ -29,47 +29,48 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
     worker = await mediasoup.createWorker();
     console.log('Mediasoup worker started');
 
-    // ✅ Crear o recuperar la sala
-    function getOrCreateRoom(roomId: string): Room {
+    async function getOrCreateRoom(roomId: string): Promise<Room> {
         let room = rooms.get(roomId);
         if (!room) {
             room = new Room(worker, mediaCodecs);
             rooms.set(roomId, room);
             console.log(`Sala creada: ${roomId}`);
         }
+
+        await room.ready;
         return room;
     }
 
 
     app.post('/get-rtp-capabilities', async (req, res) => {
         const { roomId } = req.body;
-        const room = getOrCreateRoom(roomId);
+        const room = await getOrCreateRoom(roomId);
         res.json(room['router'].rtpCapabilities);
     });
 
     app.post('/create-transport', async (req, res) => {
         const { roomId, senderId } = req.body;
-    
-        const room = getOrCreateRoom(roomId);
-        const fakeSocket: any = { send: () => {} }; 
-    
+
+        const room = await getOrCreateRoom(roomId);
+        const fakeSocket: any = { send: () => { } };
+
         const peerId = String(senderId);
-    
+
         if (!room['peers'].has(peerId)) {
             room['peers'].set(peerId, new (await import('./rooms/Peer.js')).default(peerId, fakeSocket));
         }
-    
+
         const peer = room['peers'].get(peerId);
-    
+
         const transportOptions = await room['router'].createWebRtcTransport({
             listenIps: [{ ip: '127.0.0.1', announcedIp: undefined }],
             enableUdp: true,
             enableTcp: true,
             preferUdp: true
         });
-    
+
         peer!.addTransport(transportOptions);
-    
+
         res.json({
             id: transportOptions.id,
             iceParameters: transportOptions.iceParameters,
@@ -77,42 +78,71 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
             dtlsParameters: transportOptions.dtlsParameters
         });
     });
-    
+
 
     app.post('/connect-transport', async (req, res) => {
         const { roomId, payload } = req.body;
         const { transportId, dtlsParameters } = payload;
-    
-        const room = getOrCreateRoom(roomId);
-        const peer = room['peers'].values().next().value; 
-    
+
+        const room = await getOrCreateRoom(roomId);
+        const peer = room['peers'].values().next().value;
+
         const transport = peer!.transports.get(transportId);
         if (!transport) {
             res.status(404).json({ error: 'Transport no encontrado' });
         }
-    
+
         await transport!.connect({ dtlsParameters });
-    
+
         res.json({ connected: true });
     });
-    
+
 
     app.post('/produce', async (req, res) => {
-        const { roomId, payload } = req.body;
-        const room = getOrCreateRoom(roomId);
-        const { transportId, kind, rtpParameters } = payload;
-        const fakeSocket: any = { send: () => {} };
-        const response = await room.handleAction('produce', { transportId, kind, rtpParameters }, "dummy", fakeSocket);
-        res.json(response);
+        const { roomId, senderId, payload } = req.body;
+        console.log('rtpParameters antes de producir:', payload.rtpParameters);
+
+        console.log('POST /produce body:', JSON.stringify(req.body, null, 2));
+
+        const room = await getOrCreateRoom(roomId);
+        const peer = room.getPeer(String(senderId));
+        if (!peer) {
+            res.status(404).json({ error: 'Peer no encontrado' });
+        }
+
+        const transport = peer!.getTransport(payload.transportId);
+        if (!transport) {
+            res.status(404).json({ error: 'Transport no encontrado' });
+        }
+
+        try {
+            const producer = await transport!.produce({
+                kind: payload.kind,
+                rtpParameters: payload.rtpParameters
+            });
+            peer!.addProducer(producer);
+            res.json({ id: producer.id });
+        } catch (err) {
+            console.error('Error en transport.produce:', err);
+            res.status(500).json({ error: err.message });
+        }
     });
+
+
+
 
     app.post('/consume', async (req, res) => {
         const { roomId, payload } = req.body;
-        const room = getOrCreateRoom(roomId);
+        const room = await getOrCreateRoom(roomId);
         const { producerPeerId, producerId, transportId, rtpCapabilities } = payload;
-        const fakeSocket: any = { send: () => {} };
+        const fakeSocket: any = { send: () => { } };
         const response = await room.handleAction('consume', { producerPeerId, producerId, transportId, rtpCapabilities }, "dummy", fakeSocket);
         res.json(response);
+    });
+
+    app.get('/health', (req, res) => {
+        console.log('→ GET /health');
+        res.status(200).send('OK');
     });
 
     server.listen(PORT, () => {

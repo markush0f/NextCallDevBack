@@ -5,56 +5,65 @@ import Peer from './Peer.js';
 export default class Room {
   private peers: Map<string, Peer> = new Map();
   private router!: mediasoup.types.Router;
+  public readonly ready: Promise<void>;
 
   constructor(
     private worker: mediasoup.types.Worker,
     private mediaCodecs: mediasoup.types.RtpCodecCapability[]
   ) {
-    this.createRouter();
+    // Inicia la creación del router al instanciar la sala
+    this.ready = this.worker.createRouter({ mediaCodecs: this.mediaCodecs })
+      .then(router => {
+        this.router = router;
+        console.log('Router creado');
+      })
+      .catch(err => {
+        console.error('Error creando el router:', err);
+        throw err;
+      });
   }
 
-  private async createRouter() {
-    this.router = await this.worker.createRouter({ mediaCodecs: this.mediaCodecs });
-    console.log('Router creado');
-  }
+  /**
+   * Ejecuta una acción sobre la sala, garantizando que el router esté listo
+   */
+  public async handleAction(
+    action: string,
+    payload: any,
+    clientId: string,
+    socket: WebSocket
+  ) {
+    await this.ready; // Esperar a que router esté inicializado
 
-  async handleAction(action: string, payload: any, clientId: string, socket: WebSocket) {
     if (!this.peers.has(clientId)) {
       this.peers.set(clientId, new Peer(clientId, socket));
     }
-
     const peer = this.peers.get(clientId)!;
 
     switch (action) {
-      // Devuelve las capacidades RTP del router de mediasoup, los tipos de audio y video que soporta.
-      // El cliente necesita esta info antes de negociar con WebRTC. Lo usa para crear su RTCPeerConnection y rtpParameters.
       case 'get-rtp-capabilities':
-        return this.router.rtpCapabilities;
+        return this.getRtpCapabilities();
 
-      // Crea un nuevo WebRTC transport, que es el canal WebRTC entre el cliente y el servidor.
-      // Para enviar o recibir media.
       case 'create-transport':
-        return await this.createWebRtcTransport(peer);
+        return this.createWebRtcTransport(peer);
 
-      // Conecta el WebRTC transport usando los DTLS parameters que el cliente.
-      // Finaliza la negociacion segura con WebRTC.
       case 'connect-transport':
-        return await this.connectTransport(peer, payload);
+        return this.connectTransport(peer, payload);
 
-      // Crea un producer, el usuario envía media al servidor.
-      // Es lo que representa el stream saliento de un usuario. Otros usuarios pueden consumirlo.
       case 'produce':
-        return await this.createProducer(peer, payload);
+        return this.createProducer(peer, payload);
 
-      // Crea un consumer, es como un canal por donde el usuario actual va a recibir media desde otro usuario.
-      // El servidor crea esta conexion para que el cliente reciba el stream de otro usuario.
       case 'consume':
-        return await this.createConsumer(peer, payload);
+        return this.createConsumer(peer, payload);
 
       default:
         console.warn(`Acción desconocida: ${action}`);
         return { error: 'Acción no reconocida' };
     }
+  }
+
+  /** Retorna las capacidades RTP del router */
+  public getRtpCapabilities(): mediasoup.types.RtpCapabilities {
+    return this.router.rtpCapabilities;
   }
 
   private async createWebRtcTransport(peer: Peer) {
@@ -66,7 +75,6 @@ export default class Room {
     });
 
     peer.addTransport(transport);
-
     return {
       id: transport.id,
       iceParameters: transport.iceParameters,
@@ -77,15 +85,18 @@ export default class Room {
 
   private async connectTransport(peer: Peer, payload: any) {
     const transport = peer.getTransport(payload.transportId);
-    if (!transport) return { error: 'Transport no encontrado' };
-
+    if (!transport) {
+      return { error: 'Transport no encontrado' };
+    }
     await transport.connect({ dtlsParameters: payload.dtlsParameters });
     return { connected: true };
   }
 
   private async createProducer(peer: Peer, payload: any) {
     const transport = peer.getTransport(payload.transportId);
-    if (!transport) return { error: 'Transport no encontrado' };
+    if (!transport) {
+      return { error: 'Transport no encontrado' };
+    }
 
     const producer = await transport.produce({
       kind: payload.kind,
@@ -94,17 +105,19 @@ export default class Room {
 
     peer.addProducer(producer);
 
-    // Notificamos a los demas peers que hay un nuevo producer.
-    for (const [peerId, peer] of this.peers.entries()) {
-      if (peerId !== peer.id) {
-        peer.socket.send(JSON.stringify({
-          action: 'new-producer',
-          data: {
-            producerId: producer.id,
-            producerPeerId: peer.id,
-            kind: producer.kind
-          }
-        }));
+    // Notificar a los demás peers
+    for (const [otherId, otherPeer] of this.peers.entries()) {
+      if (otherId !== peer.id) {
+        otherPeer.socket.send(
+          JSON.stringify({
+            action: 'new-producer',
+            data: {
+              producerId: producer.id,
+              producerPeerId: peer.id,
+              kind: producer.kind
+            }
+          })
+        );
       }
     }
     return { id: producer.id };
@@ -112,14 +125,17 @@ export default class Room {
 
   private async createConsumer(peer: Peer, payload: any) {
     const producerPeer = this.peers.get(payload.producerPeerId);
-    if (!producerPeer) return { error: 'Peer del productor no encontrado' };
-
+    if (!producerPeer) {
+      return { error: 'Peer del productor no encontrado' };
+    }
     const producer = producerPeer.producers.get(payload.producerId);
-    if (!producer) return { error: 'Producer no encontrado' };
-
+    if (!producer) {
+      return { error: 'Producer no encontrado' };
+    }
     const transport = peer.getTransport(payload.transportId);
-    if (!transport) return { error: 'Transport no encontrado' };
-
+    if (!transport) {
+      return { error: 'Transport no encontrado' };
+    }
     if (!this.router.canConsume({
       producerId: producer.id,
       rtpCapabilities: payload.rtpCapabilities
@@ -134,7 +150,6 @@ export default class Room {
     });
 
     peer.addConsumer(consumer);
-
     return {
       id: consumer.id,
       kind: consumer.kind,
@@ -143,22 +158,19 @@ export default class Room {
     };
   }
 
-  removePeer(id: string) {
-    const peer = this.peers.get(id);
+  /** Elimina un peer y cierra sus recursos */
+  public removePeer(peerId: string) {
+    const peer = this.peers.get(peerId);
     if (!peer) return;
-
-    for (const transport of peer.transports.values()) {
-      transport.close();
-    }
-    for (const producer of peer.producers.values()) {
-      producer.close();
-    }
-    for (const consumer of peer.consumers.values()) {
-      consumer.close();
-    }
-
-    this.peers.delete(id);
-    console.log(`👤 Peer eliminado de la sala: ${id}`);
+    for (const transport of peer.transports.values()) transport.close();
+    for (const producer of peer.producers.values()) producer.close();
+    for (const consumer of peer.consumers.values()) consumer.close();
+    this.peers.delete(peerId);
+    console.log(`👤 Peer eliminado de la sala: ${peerId}`);
   }
 
+  /** Obtiene un peer ya existente */
+  public getPeer(peerId: string): Peer | undefined {
+    return this.peers.get(peerId);
+  }
 }

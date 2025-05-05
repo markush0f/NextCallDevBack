@@ -39,13 +39,17 @@ public class MediaServerClient {
 	            .block();
 	}
 
-	public String produce(String roomId, Object payload) {
+       public String produce(String roomId, Long senderId, Object payload) {
 	    return webClient.post()
-	            .uri("/produce")
-	            .bodyValue(Map.of("roomId", roomId, "payload", payload))
-	            .retrieve()
-	            .bodyToMono(String.class)
-	            .block();
+	        .uri("/produce")
+	        .bodyValue(Map.of(
+	            "roomId",    roomId,
+	            "senderId",  senderId,
+	            "payload",   payload
+	        ))
+	        .retrieve()
+	        .bodyToMono(String.class)
+	        .block();
 	}
 
 	public String consume(String roomId, Object payload) {

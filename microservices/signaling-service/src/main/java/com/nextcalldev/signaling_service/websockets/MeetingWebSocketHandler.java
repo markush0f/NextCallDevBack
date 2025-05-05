@@ -79,8 +79,12 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
                         response = mediaServerClient.connectTransport(String.valueOf(meetingId), signal.getPayload());
                         break;
                     case "produce":
-                        response = mediaServerClient.produce(String.valueOf(meetingId), signal.getPayload());
-                        break;
+                	    response = mediaServerClient.produce(
+                	        String.valueOf(meetingId),
+                	        signal.getSender(),         // <-- el senderId
+                	        signal.getPayload()         // <-- el payload
+                	    );
+                	    break;
                     case "consume":
                         response = mediaServerClient.consume(String.valueOf(meetingId), signal.getPayload());
                         break;
@@ -107,7 +111,7 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
                 session.sendMessage(new TextMessage("{\"error\":\"Error al comunicar con media-server\"}"));
                 e.printStackTrace();
             }
-            return;
+            return;			
         }
 
         // Si no es media, reenvía a otros usuarios en la misma reunión
