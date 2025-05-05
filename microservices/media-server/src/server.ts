@@ -5,9 +5,8 @@ import * as mediasoup from 'mediasoup';
 import Room from './rooms/Room.js';
 
 const app = express();
-app.use(express.json()); // ✅ Parsear JSON
+app.use(express.json());
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
 
 const rooms = new Map<string, Room>();
 let worker: mediasoup.types.Worker;

@@ -10,6 +10,7 @@
   <button onclick="sendGetRtpCapabilities()">Obtener RTP Capabilities</button>
   <button onclick="sendCreateTransport()">Crear WebRTC Transport</button>
   <button onclick="sendConnectTransport()">Conectar WebRTC Transport</button>
+  <button onclick="sendProduce()">Enviar media (produce)</button>
 
   <pre id="log"></pre>
 
@@ -23,12 +24,12 @@
     socket.onopen = () => {
       log("🟢 WebSocket conectado (vía API Gateway)");
 
-      // Enviar mensaje de prueba automáticamente
       sendGetRtpCapabilities();
     };
 
     socket.onmessage = (event) => {
       try {
+        console.log("🛠 DEBUG: mensaje recibido", event.data);
         const data = JSON.parse(event.data);
         log("📩 Respuesta del servidor:\n" + JSON.stringify(data, null, 2));
 
@@ -117,6 +118,32 @@
       socket.send(JSON.stringify(message));
       log("📤 Enviado: connect-transport");
     }
+    function sendProduce() {
+  if (!lastTransportId) {
+    log("⚠️ No hay transportId disponible para producir.");
+    return;
+  }
+
+  const message = {
+    type: "produce",
+    sender: userId,
+    target: 0,
+    payload: {
+      transportId: lastTransportId,
+      kind: "video", // o "audio"
+      rtpParameters: {
+        // ⚠️ ESTO ES SOLO DE PRUEBA - DEBES REEMPLAZAR CON LOS REALES DE WebRTC
+        codecs: [],
+        encodings: [],
+        rtcp: {}
+      }
+    }
+  };
+
+  socket.send(JSON.stringify(message));
+  log("📤 Enviado: produce");
+}
+
 
     function log(text) {
       const logElement = document.getElementById("log");

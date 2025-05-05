@@ -61,7 +61,6 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
         Long meetingId = getMeetingId(session);
-
         ObjectMapper mapper = new ObjectMapper();
         SignalMessageDto signal = mapper.readValue(message.getPayload(), SignalMessageDto.class);
 
@@ -69,7 +68,7 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
             try {
                 String response = null;
 
-                    switch (signal.getType()) {
+                switch (signal.getType()) {
                     case "get-rtp-capabilities":
                         response = mediaServerClient.getRtpCapabilities(String.valueOf(meetingId));
                         break;
@@ -89,10 +88,16 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
                         response = "{\"error\":\"Acción no reconocida\"}";
                         break;
                 }
-
-
+                System.out.print("RESPONSE: " + response);
                 if (response != null) {
-                    session.sendMessage(new TextMessage(response));
+                    ObjectNode enriched = mapper.createObjectNode();
+                    enriched.put("action", signal.getType());
+                    enriched.set("data", mapper.readTree(response));
+
+                    String finalResponse = enriched.toString();
+                    System.out.println("📤 Enviando al cliente: " + finalResponse); // ← clave para verificar
+
+                    session.sendMessage(new TextMessage(finalResponse));
                     System.out.println("✅ Acción media enviada al media-server: " + signal.getType());
                 } else {
                     session.sendMessage(new TextMessage("{\"error\":\"Sin respuesta del media-server\"}"));
@@ -105,12 +110,15 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
+        // Si no es media, reenvía a otros usuarios en la misma reunión
         for (UserSession userSession : meetings.getOrDefault(meetingId, new CopyOnWriteArraySet<>())) {
             if (userSession.getUserId().equals(signal.getTarget()) && userSession.getSession().isOpen()) {
                 userSession.getSession().sendMessage(message);
             }
         }
     }
+
+
 
 
 
