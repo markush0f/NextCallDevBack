@@ -122,23 +122,48 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
             });
             peer!.addProducer(producer);
             res.json({ id: producer.id });
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error en transport.produce:', err);
             res.status(500).json({ error: err.message });
         }
     });
 
-
-
-
+    // Consume media
+    // Consume media
     app.post('/consume', async (req, res) => {
-        const { roomId, payload } = req.body;
-        const room = await getOrCreateRoom(roomId);
-        const { producerPeerId, producerId, transportId, rtpCapabilities } = payload;
-        const fakeSocket: any = { send: () => { } };
-        const response = await room.handleAction('consume', { producerPeerId, producerId, transportId, rtpCapabilities }, "dummy", fakeSocket);
-        res.json(response);
+        const { roomId, senderId, payload } = req.body;
+        try {
+            const room = await getOrCreateRoom(roomId);
+            const { producerPeerId, producerId, transportId, rtpCapabilities } = payload;
+            const fakeSocket: any = { send: () => { } };
+
+            // Llamamos a la lógica de consume
+            const result = await room.handleAction(
+                'consume',
+                { producerPeerId, producerId, transportId, rtpCapabilities },
+                String(senderId),
+                fakeSocket
+            );
+
+            // Si handleAction devolvió un error, respondemos 404 y SALIMOS
+            if (result && (result as any).error) {
+                res.status(404).json({ error: (result as any).error });
+            }
+
+            // Si todo ok, devolvemos el resultado y SALIMOS
+            res.json(result);
+
+        } catch (err: any) {
+            console.error('Error en consume:', err);
+
+            if (!res.headersSent) {
+                res.status(500).json({ error: err.message });
+            }
+        }
     });
+
+
+
 
     app.get('/health', (req, res) => {
         console.log('→ GET /health');
@@ -148,4 +173,5 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
     server.listen(PORT, () => {
         console.log(`🚀 Media server HTTP + WebSocket escuchando en http://localhost:${PORT}`);
     });
-})();
+})
+    ();
