@@ -24,7 +24,7 @@ import com.nextcalldev.signaling_service.models.UserSession;
 public class MeetingWebSocketHandler extends TextWebSocketHandler {
 
     private final NotificationWebSocketHandler notificationWebSocketHandler;
-    private MediaServerClient mediaServerClient;
+    private final MediaServerClient mediaServerClient;
 
 
     public MeetingWebSocketHandler(NotificationWebSocketHandler notificationWebSocketHandler, MediaServerClient mediaServerClient) {
@@ -68,24 +68,37 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 
                 switch (signal.getType()) {
                     case "get-rtp-capabilities":
-                        response = mediaServerClient.getRtpCapabilities(String.valueOf(meetingId));
+                        response = mediaServerClient.getRtpCapabilities(
+                        	String.valueOf(meetingId)
+                        	);
                         break;
                     case "create-transport":
-                        response = mediaServerClient.createTransport(String.valueOf(meetingId), signal.getSender());
+                        response = mediaServerClient.createTransport(
+                        	String.valueOf(meetingId), 
+                        	signal.getSender()
+                        	);
                         break;
                     case "connect-transport":
-                        response = mediaServerClient.connectTransport(String.valueOf(meetingId), signal.getPayload());
-                        break;
+                	  response = mediaServerClient.connectTransport(
+                	    String.valueOf(meetingId),
+                	    signal.getSender(),     
+                	    signal.getPayload()
+                	  );
+                	  break;
                     case "produce":
                 	    response = mediaServerClient.produce(
                 	        String.valueOf(meetingId),
-                	        signal.getSender(),         // <-- el senderId
-                	        signal.getPayload()         // <-- el payload
+                	        signal.getSender(),        
+                	        signal.getPayload()         
                 	    );
                 	    break;
                     case "consume":
-                        response = mediaServerClient.consume(String.valueOf(meetingId), signal.getPayload());
-                        break;
+                	  response = mediaServerClient.consume(
+                	    String.valueOf(meetingId),
+                	    signal.getSender(),      
+                	    signal.getPayload()
+                	  );
+                	  break;
                     default:
                         response = "{\"error\":\"Acción no reconocida\"}";
                         break;
@@ -97,10 +110,10 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
                     enriched.set("data", mapper.readTree(response));
 
                     String finalResponse = enriched.toString();
-                    System.out.println("📤 Enviando al cliente: " + finalResponse); // ← clave para verificar
+                    System.out.println("Enviando al cliente: " + finalResponse);
 
                     session.sendMessage(new TextMessage(finalResponse));
-                    System.out.println("✅ Acción media enviada al media-server: " + signal.getType());
+                    System.out.println("Acción media enviada al media-server: " + signal.getType());
                 } else {
                     session.sendMessage(new TextMessage("{\"error\":\"Sin respuesta del media-server\"}"));
                 }
@@ -119,8 +132,6 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
             }
         }
     }
-
-
 
 
 

@@ -153,7 +153,6 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
             const { producerPeerId, producerId, transportId, rtpCapabilities } = payload;
             const fakeSocket: any = { send: () => { } };
 
-            // Llamamos a la lógica de consume
             const result = await room.handleAction(
                 'consume',
                 { producerPeerId, producerId, transportId, rtpCapabilities },
@@ -161,12 +160,10 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
                 fakeSocket
             );
 
-            // Si handleAction devolvió un error, respondemos 404 y SALIMOS
             if (result && (result as any).error) {
                 res.status(404).json({ error: (result as any).error });
             }
 
-            // Si todo ok, devolvemos el resultado y SALIMOS
             res.json(result);
 
         } catch (err: any) {
@@ -177,7 +174,6 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
             }
         }
     });
-
 
 
 
