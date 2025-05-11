@@ -1,12 +1,17 @@
 import express from 'express';
 import http from 'http';
-import { WebSocketServer } from 'ws';
 import * as mediasoup from 'mediasoup';
 import Room from './rooms/Room.js';
+import cors from 'cors';
 
 const app = express();
-app.use(express.json()); // ✅ Parsear JSON
+app.use(express.json());
 const server = http.createServer(app);
+
+app.use(cors({
+    origin: ['http://localhost:5500', 'http://127.0.0.1:5500'],
+    credentials: true
+}));
 
 const rooms = new Map<string, Room>();
 let worker: mediasoup.types.Worker;
@@ -79,23 +84,35 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
         });
     });
 
-
+    // Conectar transport (DTLS handshake)
     app.post('/connect-transport', async (req, res) => {
-        const { roomId, payload } = req.body;
+        const { roomId, senderId, payload } = req.body;
         const { transportId, dtlsParameters } = payload;
 
-        const room = await getOrCreateRoom(roomId);
-        const peer = room['peers'].values().next().value;
+        try {
+            const room = await getOrCreateRoom(roomId);
 
-        const transport = peer!.transports.get(transportId);
-        if (!transport) {
-            res.status(404).json({ error: 'Transport no encontrado' });
+            const peer = room.getPeer(String(senderId));
+            if (!peer) {
+                res.status(404).json({ error: 'Peer no encontrado' });
+            }
+
+            const transport = peer!.getTransport(transportId);
+            if (!transport) {
+                res.status(404).json({ error: 'Transport no encontrado' });
+            }
+
+            await transport!.connect({ dtlsParameters });
+
+            res.json({ connected: true });
+        } catch (err: any) {
+            console.error('Error en connect-transport:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: err.message });
+            }
         }
-
-        await transport!.connect({ dtlsParameters });
-
-        res.json({ connected: true });
     });
+
 
 
     app.post('/produce', async (req, res) => {
@@ -128,7 +145,6 @@ const mediaCodecs: mediasoup.types.RtpCodecCapability[] = [
         }
     });
 
-    // Consume media
     // Consume media
     app.post('/consume', async (req, res) => {
         const { roomId, senderId, payload } = req.body;

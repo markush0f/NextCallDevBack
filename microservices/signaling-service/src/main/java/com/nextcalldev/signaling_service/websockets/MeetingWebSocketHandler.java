@@ -54,8 +54,6 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
 	    e.printStackTrace(); 
 	}
 
-//	notificationWebSocketHandler.sendNotification(meetingId, json);
-//	notificationWebSocketHandler.subscribeUserToMeetingNotifications(meetingId, session);
     }
 
     @Override

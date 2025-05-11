@@ -1,8 +1,15 @@
-import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
+import express from 'express';
+import http from 'http';
 import * as mediasoup from 'mediasoup';
-import { v4 as uuidv4 } from 'uuid';
 import Room from './rooms/Room.js';
+import cors from 'cors';
+const app = express();
+app.use(express.json());
+const server = http.createServer(app);
+app.use(cors({
+    origin: 'http://localhost:5500',
+    credentials: true
+}));
 const rooms = new Map();
 let worker;
 const PORT = 3001;
@@ -11,7 +18,7 @@ const mediaCodecs = [
         kind: 'audio',
         mimeType: 'audio/opus',
         clockRate: 48000,
-        channels: 2
+        channels: 2,
     },
     {
         kind: 'video',
@@ -20,36 +27,112 @@ const mediaCodecs = [
     }
 ];
 (async () => {
-    // El worker es el proceso que maneja todo lo que tiene que ver con transmisión de media.
     worker = await mediasoup.createWorker();
     console.log('Mediasoup worker started');
-    // Crea un servidor WebSocket
-    const httpServer = createServer();
-    const wss = new WebSocketServer({ server: httpServer });
-    wss.on('connection', (ws) => {
-        const clientId = uuidv4();
-        console.log(`Cliente conectado: ${clientId}`);
-        ws.on('message', async (message) => {
-            const { action, roomId, payload } = JSON.parse(message.toString());
-            let room = rooms.get(roomId);
-            if (!room) {
-                room = new Room(worker, mediaCodecs);
-                rooms.set(roomId, room);
-                console.log(`Sala creada: ${roomId}`);
-            }
-            const response = await room.handleAction(action, payload, clientId, ws);
-            if (response) {
-                ws.send(JSON.stringify({ action, data: response }));
-            }
+    async function getOrCreateRoom(roomId) {
+        let room = rooms.get(roomId);
+        if (!room) {
+            room = new Room(worker, mediaCodecs);
+            rooms.set(roomId, room);
+            console.log(`Sala creada: ${roomId}`);
+        }
+        await room.ready;
+        return room;
+    }
+    app.post('/get-rtp-capabilities', async (req, res) => {
+        const { roomId } = req.body;
+        const room = await getOrCreateRoom(roomId);
+        res.json(room['router'].rtpCapabilities);
+    });
+    app.post('/create-transport', async (req, res) => {
+        const { roomId, senderId } = req.body;
+        const room = await getOrCreateRoom(roomId);
+        const fakeSocket = { send: () => { } };
+        const peerId = String(senderId);
+        if (!room['peers'].has(peerId)) {
+            room['peers'].set(peerId, new (await import('./rooms/Peer.js')).default(peerId, fakeSocket));
+        }
+        const peer = room['peers'].get(peerId);
+        const transportOptions = await room['router'].createWebRtcTransport({
+            listenIps: [{ ip: '127.0.0.1', announcedIp: undefined }],
+            enableUdp: true,
+            enableTcp: true,
+            preferUdp: true
         });
-        ws.on('close', () => {
-            for (const room of rooms.values()) {
-                room.removePeer(clientId);
-            }
-            console.log(`🔌 Cliente desconectado: ${clientId}`);
+        peer.addTransport(transportOptions);
+        res.json({
+            id: transportOptions.id,
+            iceParameters: transportOptions.iceParameters,
+            iceCandidates: transportOptions.iceCandidates,
+            dtlsParameters: transportOptions.dtlsParameters
         });
     });
-    httpServer.listen(PORT, () => {
-        console.log(`Media server WebSocket escuchando en ws://localhost:3001 ${PORT}`);
+    app.post('/connect-transport', async (req, res) => {
+        const { roomId, payload } = req.body;
+        const { transportId, dtlsParameters } = payload;
+        const room = await getOrCreateRoom(roomId);
+        const peer = room['peers'].values().next().value;
+        const transport = peer.transports.get(transportId);
+        if (!transport) {
+            res.status(404).json({ error: 'Transport no encontrado' });
+        }
+        await transport.connect({ dtlsParameters });
+        res.json({ connected: true });
+    });
+    app.post('/produce', async (req, res) => {
+        const { roomId, senderId, payload } = req.body;
+        console.log('rtpParameters antes de producir:', payload.rtpParameters);
+        console.log('POST /produce body:', JSON.stringify(req.body, null, 2));
+        const room = await getOrCreateRoom(roomId);
+        const peer = room.getPeer(String(senderId));
+        if (!peer) {
+            res.status(404).json({ error: 'Peer no encontrado' });
+        }
+        const transport = peer.getTransport(payload.transportId);
+        if (!transport) {
+            res.status(404).json({ error: 'Transport no encontrado' });
+        }
+        try {
+            const producer = await transport.produce({
+                kind: payload.kind,
+                rtpParameters: payload.rtpParameters
+            });
+            peer.addProducer(producer);
+            res.json({ id: producer.id });
+        }
+        catch (err) {
+            console.error('Error en transport.produce:', err);
+            res.status(500).json({ error: err.message });
+        }
+    });
+    // Consume media
+    app.post('/consume', async (req, res) => {
+        const { roomId, senderId, payload } = req.body;
+        try {
+            const room = await getOrCreateRoom(roomId);
+            const { producerPeerId, producerId, transportId, rtpCapabilities } = payload;
+            const fakeSocket = { send: () => { } };
+            // Llamamos a la lógica de consume
+            const result = await room.handleAction('consume', { producerPeerId, producerId, transportId, rtpCapabilities }, String(senderId), fakeSocket);
+            // Si handleAction devolvió un error, respondemos 404 y SALIMOS
+            if (result && result.error) {
+                res.status(404).json({ error: result.error });
+            }
+            // Si todo ok, devolvemos el resultado y SALIMOS
+            res.json(result);
+        }
+        catch (err) {
+            console.error('Error en consume:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: err.message });
+            }
+        }
+    });
+    app.get('/health', (req, res) => {
+        console.log('→ GET /health');
+        res.status(200).send('OK');
+    });
+    server.listen(PORT, () => {
+        console.log(`🚀 Media server HTTP + WebSocket escuchando en http://localhost:${PORT}`);
     });
 })();

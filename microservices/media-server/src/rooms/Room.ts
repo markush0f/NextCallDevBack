@@ -3,15 +3,15 @@ import { WebSocket } from 'ws';
 import Peer from './Peer.js';
 
 export default class Room {
-  private peers: Map<string, Peer> = new Map();
+  private readonly peers: Map<string, Peer> = new Map();
   private router!: mediasoup.types.Router;
   public readonly ready: Promise<void>;
 
   constructor(
-    private worker: mediasoup.types.Worker,
-    private mediaCodecs: mediasoup.types.RtpCodecCapability[]
+    private readonly worker: mediasoup.types.Worker,
+    private readonly mediaCodecs: mediasoup.types.RtpCodecCapability[]
   ) {
-    // Inicia la creación del router al instanciar la sala
+
     this.ready = this.worker.createRouter({ mediaCodecs: this.mediaCodecs })
       .then(router => {
         this.router = router;
@@ -32,7 +32,7 @@ export default class Room {
     clientId: string,
     socket: WebSocket
   ) {
-    await this.ready; // Esperar a que router esté inicializado
+    await this.ready;
 
     if (!this.peers.has(clientId)) {
       this.peers.set(clientId, new Peer(clientId, socket));
@@ -105,7 +105,6 @@ export default class Room {
 
     peer.addProducer(producer);
 
-    // Notificar a los demás peers
     for (const [otherId, otherPeer] of this.peers.entries()) {
       if (otherId !== peer.id) {
         otherPeer.socket.send(
@@ -158,7 +157,6 @@ export default class Room {
     };
   }
 
-  /** Elimina un peer y cierra sus recursos */
   public removePeer(peerId: string) {
     const peer = this.peers.get(peerId);
     if (!peer) return;
@@ -169,7 +167,6 @@ export default class Room {
     console.log(`👤 Peer eliminado de la sala: ${peerId}`);
   }
 
-  /** Obtiene un peer ya existente */
   public getPeer(peerId: string): Peer | undefined {
     return this.peers.get(peerId);
   }

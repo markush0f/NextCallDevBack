@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NextCallDev SFU Test</title>
+  <style>
+    video { width: 45%; margin: 2%; background: #000; }
+    body { font-family: sans-serif; text-align: center; }
+    button { margin: 0.5em; padding: 0.5em 1em; }
+  </style>
+</head>
+<body>
+  <h1>NextCallDev SFU Quick Test</h1>
+  <div>
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
+  </div>
+  <div>
+    <button id="startBtn">Start Local</button>
+    <button id="publishBtn" disabled>Publish</button>
+    <button id="subscribeBtn" disabled>Subscribe</button>
+  </div>
+
+  <script type="module">
+    // Cargar mediasoup-client desde ESM.sh con CORS habilitado
+    import { Device } from 'https://esm.sh/mediasoup-client@3.10.1';
+
+    const ROOM_ID = '1';
+    const PRODUCER_ID = 1;
+    const CONSUMER_ID = 2;
+    const API_BASE = 'http://127.0.0.1:3001';
+
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const startBtn = document.getElementById('startBtn');
+    const publishBtn = document.getElementById('publishBtn');
+    const subscribeBtn = document.getElementById('subscribeBtn');
+
+    let device, sendTransport, recvTransport, producer;
+    let rtpCapabilities, transportIdSend, transportIdRecv, producerId;
+
+    // Paso 1: Obtener la cámara y preparar device
+    startBtn.onclick = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = stream;
+
+      const capsRes = await fetch(`${API_BASE}/get-rtp-capabilities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: ROOM_ID })
+      });
+      rtpCapabilities = await capsRes.json();
+
+      device = new Device();
+      await device.load({ routerRtpCapabilities: rtpCapabilities });
+
+      publishBtn.disabled = false;
+      startBtn.disabled = true;
+      console.log('Device ready');
+    };
+
+    // Paso 2: Publicar media
+    publishBtn.onclick = async () => {
+      // Crear transport de envío
+      const ctRes = await fetch(`${API_BASE}/create-transport`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: ROOM_ID, senderId: PRODUCER_ID })
+      });
+      const ct = await ctRes.json();
+      transportIdSend = ct.id;
+      sendTransport = device.createSendTransport(ct);
+
+      // Handler connect para DTLS
+      sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+        try {
+          const res = await fetch(`${API_BASE}/connect-transport`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              roomId: ROOM_ID,
+              senderId: PRODUCER_ID,
+              payload: { transportId: transportIdSend, dtlsParameters }
+            })
+          });
+          if (!res.ok) throw new Error('connect-transport failed');
+          callback();
+          console.log('Connected transport for produce');
+        } catch (error) {
+          console.error('DTLS handshake error:', error);
+          errback(error);
+        }
+      });
+
+      // Handler produce para crear el Producer en el servidor
+      sendTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
+        try {
+          const res = await fetch(`${API_BASE}/produce`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              roomId: ROOM_ID,
+              senderId: PRODUCER_ID,
+              payload: { transportId: transportIdSend, kind, rtpParameters }
+            })
+          });
+          const data = await res.json();
+          callback({ id: data.id });
+          producerId = data.id;
+          console.log('Produced, id =', producerId);
+        } catch (error) {
+          console.error('Produce error:', error);
+          errback(error);
+        }
+      });
+
+      // Disparar produce
+      const track = localVideo.srcObject.getVideoTracks()[0];
+      producer = await sendTransport.produce({ track });
+
+      publishBtn.disabled = true;
+      subscribeBtn.disabled = false;
+    };
+
+    subscribeBtn.onclick = async () => {
+      // Crear transport de recepción
+      const crRes = await fetch(`${API_BASE}/create-transport`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: ROOM_ID, senderId: CONSUMER_ID })
+      });
+      const cr = await crRes.json();
+      transportIdRecv = cr.id;
+      recvTransport = device.createRecvTransport(cr);
+
+      recvTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+        try {
+          const res = await fetch(`${API_BASE}/connect-transport`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              roomId: ROOM_ID,
+              senderId: CONSUMER_ID,
+              payload: { transportId: transportIdRecv, dtlsParameters }
+            })
+          });
+          if (!res.ok) throw new Error('connect-transport failed');
+          callback();
+          console.log('Connected transport for consume');
+        } catch (error) {
+          console.error('DTLS handshake consume error:', error);
+          errback(error);
+        }
+      });
+
+      const consRes = await fetch(`${API_BASE}/consume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: ROOM_ID,
+          senderId: CONSUMER_ID,
+          payload: {
+            producerPeerId: String(PRODUCER_ID),
+            producerId,
+            transportId: transportIdRecv,
+            rtpCapabilities
+          }
+        })
+      });
+      const cons = await consRes.json();
+
+      // Crear consumer en el cliente
+      const consumer = await recvTransport.consume({
+        id: cons.id,
+        producerId: cons.producerId,
+        kind: cons.kind,
+        rtpParameters: cons.rtpParameters
+      });
+      console.log('Consumed, id =', cons.id);
+
+      // Mostrar media
+      remoteVideo.srcObject = new MediaStream([consumer.track]);
+      subscribeBtn.disabled = true;
+    };
+  </script>
+</body>
+</html>
