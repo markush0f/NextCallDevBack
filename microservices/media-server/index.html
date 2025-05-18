@@ -1,15 +1,33 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <title>NextCallDev SFU Videollamada</title>
   <style>
-    body { font-family: sans-serif; text-align: center; }
-    video { width: 45%; margin: 1%; background: #000; }
-    input, button { margin: 0.5em; padding: 0.5em; }
-    #controls { margin-bottom: 1em; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+    }
+
+    video {
+      width: 45%;
+      margin: 1%;
+      background: #000;
+    }
+
+    input,
+    button {
+      margin: 0.5em;
+      padding: 0.5em;
+    }
+
+    #controls {
+      margin-bottom: 1em;
+    }
   </style>
 </head>
+
 <body>
   <h1>NextCallDev SFU Videollamada</h1>
   <div id="controls">
@@ -101,17 +119,18 @@
             producerId = payload.id;
             console.log('Producer creado:', producerId);
             break;
-
           case 'new-producer':
-            // Otro peer ha publicado
             remoteProducerPeerId = payload.producerPeerId;
             remoteProducerId = payload.producerId;
-            // Crear transporte de recepción
-            socket.send(JSON.stringify({ type: 'create-transport', sender: USER_ID, payload: {} }));
+            // CREAR transporte de recepción
+            socket.send(JSON.stringify({
+              type: 'create-transport',
+              sender: USER_ID,
+              payload: {}
+            }));
             break;
 
           case 'consume':
-            // Recibimos parámetros para consumir
             const consumerParams = payload;
             const consumer = await recvTransport.consume({
               id: consumerParams.id,
@@ -119,6 +138,10 @@
               kind: consumerParams.kind,
               rtpParameters: consumerParams.rtpParameters
             });
+            remoteVideo.srcObject = new MediaStream([consumer.track]);
+            console.log('Consumer creado:', consumer.id);
+            break;
+
             // Mostrar en <video>
             remoteVideo.srcObject = new MediaStream([consumer.track]);
             console.log('Consumer creado:', consumer.id);
@@ -138,29 +161,59 @@
           }));
           callback();
         });
-        sendTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
+        sendTransport.on('produce', ({ kind, rtpParameters }, callback) => {
+          // 1) envío al servidor
           socket.send(JSON.stringify({
-            type: 'produce', sender: USER_ID,
-            payload: { transportId: sendTransport.id, kind, rtpParameters }
+            type: 'produce',
+            sender: USER_ID,
+            payload: {
+              transportId: sendTransport.id,
+              kind,
+              rtpParameters
+            }
           }));
-          // Esperamos respuesta WS con action 'produce' para obtener el id
-          callback({ id: producerId });
+          // 2) espero el mensaje WS con action 'produce' para setear producerId
+          socket.once('message', ({ data }) => {
+            const msg = JSON.parse(data);
+            if (msg.action === 'produce') {
+              producerId = msg.data.id;
+              callback({ id: producerId });
+            }
+          });
         });
+
         // Comenzar a producir
         const track = localStream.getTracks().find(t => t.kind === 'video');
         sendTransport.produce({ track });
       }
 
       function setupRecvTransport(USER_ID) {
-        recvTransport.on('connect', ({ dtlsParameters }, callback, errback) => {
+        recvTransport.on('connect', ({ dtlsParameters }, callback) => {
           socket.send(JSON.stringify({
-            type: 'connect-transport', sender: USER_ID,
-            payload: { transportId: recvTransport.id, dtlsParameters }
+            type: 'connect-transport',
+            sender: USER_ID,
+            payload: {
+              transportId: recvTransport.id,
+              dtlsParameters
+            }
           }));
           callback();
         });
+
+        // ¡AÑADIR ESTO! pido al servidor los parámetros de consume
+        socket.send(JSON.stringify({
+          type: 'consume',
+          sender: USER_ID,
+          payload: {
+            transportId: recvTransport.id,
+            producerId: remoteProducerId,
+            rtpCapabilities: device.rtpCapabilities
+          }
+        }));
       }
+
     };
   </script>
 </body>
+
 </html>

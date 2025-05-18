@@ -12,6 +12,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nextcalldev.signaling_service.common.UserRole;
@@ -86,12 +87,27 @@ public class MeetingWebSocketHandler extends TextWebSocketHandler {
                 	  );
                 	  break;
                     case "produce":
-                	    response = mediaServerClient.produce(
-                	        String.valueOf(meetingId),
-                	        signal.getSender(),        
-                	        signal.getPayload()         
-                	    );
+                	    JsonNode resp = mapper.readTree(response);
+                	    long newProducerId = resp.get("id").asLong();
+                	    long producerPeerId = signal.getSender();
+
+                	    ObjectNode ownReply = mapper.createObjectNode();
+                	    ownReply.put("action", "produce");
+                	    ownReply.set("data", resp);
+                	    session.sendMessage(new TextMessage(ownReply.toString()));
+
+                	    for (UserSession peer : meetings.get(meetingId)) {
+                	        if (!peer.getUserId().equals(producerPeerId) && peer.getSession().isOpen()) {
+                	            ObjectNode evt = mapper.createObjectNode();
+                	            evt.put("action", "new-producer");
+                	            ObjectNode data = evt.putObject("data");
+                	            data.put("producerPeerId", producerPeerId);
+                	            data.put("producerId", newProducerId);
+                	            peer.getSession().sendMessage(new TextMessage(evt.toString()));
+                	        }
+                	    }
                 	    break;
+
                     case "consume":
                 	  response = mediaServerClient.consume(
                 	    String.valueOf(meetingId),

@@ -54,7 +54,6 @@ public class MediaServerClient {
       .block();
   }
 
-  // ← Ajustado: ahora recibe senderId
   public String consume(String roomId, Long senderId, Object payload) {
     return webClient.post()
       .uri("/consume")
