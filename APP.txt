@@ -1,0 +1,19 @@
+Servicio de Gestión de Usuarios: Maneja el registro, autenticación y gestión de perfiles de usuarios.
+
+Servicio de Gestión de Salas de Videollamadas: Permite crear, unirse y gestionar salas de videollamadas.
+
+Servicio de Mensajería en Tiempo Real: Facilita la comunicación instantánea entre usuarios dentro de las videollamadas y fuera de ellas.
+
+Servicio de Grabación de Videollamadas: Ofrece la funcionalidad de grabar las videollamadas para revisión posterior.
+
+Servicio de Notificaciones: Envía notificaciones en tiempo real sobre invitaciones a videollamadas, mensajes nuevos, etc.
+
+Servicio de Calendario y Programación de Reuniones: Gestiona la programación de reuniones, integrándose con calendarios externos como Google Calendar.
+
+Servicio de Transcodificación de Video: Convierte el formato de video según los dispositivos y ancho de banda de los participantes.
+
+Servicio de Estadísticas y Análisis: Recolecta datos sobre el uso de las videollamadas, tiempos de conexión, calidad de conexión, etc.
+
+Servicio de Integración de APIs Externas: Integra servicios externos como almacenamiento en la nube para guardar grabaciones, APIs de reconocimiento facial para funciones de seguridad, entre otros.
+
+Servicio de Autenticación y Autorización: Proporciona autenticación centralizada y gestión de roles para todos los microservicios.

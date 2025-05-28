@@ -1,0 +1,4 @@
+Para ver la configuracion de cada microservicio desde config-service:
+http://localhost:8888/{nombre-microservicio}/{perfil}
+Por ejemplo: http://localhost:8888/user-service/default
+

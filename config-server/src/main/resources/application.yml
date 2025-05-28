@@ -11,5 +11,5 @@ spring:
       profile: dev
       server:
         git:
-          uri: file:///C:/Users/abram/Documents/GestionRestaurantes/git-local-config
+          uri: https://github.com/markush0f/next-call-dev-config.git
           clone-on-start: true

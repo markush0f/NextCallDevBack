@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: signaling-service
+  config:
+    import: "configserver:" 
+  cloud:
+    config:
+      uri: http://localhost:8888  
+      fail-fast: true  
+
+logging:
+  level:
+    org.springframework.web.socket: DEBUG
+    org.springframework.web.socket.server: DEBUG

@@ -2,9 +2,44 @@ spring:
   application:
     name: api-gateway
   config:
-    import: "configserver:" 
+    import: "configserver:"
   cloud:
     config:
-      uri: http://localhost:8888  
-      fail-fast: true  
+      uri: http://localhost:8888
+      fail-fast: false
+    gateway:
+      routes:
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/user/**
+        - id: meeting-service
+          uri: lb://meeting-service
+          predicates:
+            - Path=/meeting/**
+        - id: 
+          uri: lb:ws://signaling-service
+          predicates:
+          - Path=/ws/meeting/**
+          - Header=Connection, Upgrade 
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: MyCircuitBreaker
+                fallbackUri: http://localhost:8080/fallback
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      MyCircuitBreaker:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10000ms
+        permittedNumberOfCallsInHalfOpenState: 2
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    io.github.resilience4j: DEBUG

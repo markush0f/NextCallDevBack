@@ -1,0 +1,1 @@
+Puedes optimizar tu proceso de construcción de imágenes utilizando una imagen multistage . Esto reduce el tamaño de la imagen final eliminando archivos innecesario
