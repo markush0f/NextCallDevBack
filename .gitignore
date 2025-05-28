@@ -6,3 +6,4 @@
 .sonarlint/
 node_modules/
 .idea/  
+git-local-config/
