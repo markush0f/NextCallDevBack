@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <title>NextCallDev SFU Videollamada</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+    }
+
+    video {
+      width: 45%;
+      margin: 1%;
+      background: #000;
+    }
+
+    input,
+    button {
+      margin: 0.5em;
+      padding: 0.5em;
+    }
+
+    #controls {
+      margin-bottom: 1em;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>NextCallDev SFU Videollamada</h1>
+  <div id="controls">
+    <label>Room ID: <input id="roomInput" type="text" value="1" /></label>
+    <label>Your User ID: <input id="userInput" type="number" value="1" min="1" /></label>
+    <button id="startBtn">Iniciar videollamada</button>
+  </div>
+  <div>
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
+  </div>
+
+  <script type="module">
+    import { Device } from 'https://esm.sh/mediasoup-client@3.10.1';
+
+    // Elementos UI
+    const roomInput = document.getElementById('roomInput');
+    const userInput = document.getElementById('userInput');
+    const startBtn = document.getElementById('startBtn');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+
+    // Estado
+    let socket;
+    let device;
+    let sendTransport;
+    let recvTransport;
+    let producerId;
+    let remoteProducerPeerId;
+    let remoteProducerId;
+
+    // Inicia la videollamada
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      const ROOM_ID = roomInput.value;
+      const USER_ID = Number(userInput.value);
+
+      // 1. Obtener media local
+      const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+
+      // 2. Conectar WebSocket
+      const WS_URL = `ws://localhost:8084/ws/meeting/${ROOM_ID}/${USER_ID}`;
+      socket = new WebSocket(WS_URL);
+
+      socket.onopen = () => {
+        console.log('WebSocket conectado');
+        // 3. Pedir capacidades RTP
+        socket.send(JSON.stringify({ type: 'get-rtp-capabilities', sender: USER_ID, payload: {} }));
+      };
+
+      socket.onmessage = async ({ data }) => {
+        const msg = JSON.parse(data);
+        const { action, data: payload, error } = msg;
+        if (error) {
+          console.error(`Error en ${action}:`, error);
+          return;
+        }
+        console.log('WS recibido:', action, payload);
+
+        switch (action) {
+          case 'get-rtp-capabilities':
+            // 4. Cargar device
+            device = new Device();
+            await device.load({ routerRtpCapabilities: payload });
+            // 5. Crear transport de envío
+            socket.send(JSON.stringify({ type: 'create-transport', sender: USER_ID, payload: {} }));
+            break;
+
+          case 'create-transport':
+            // Determinar si es send o recv
+            if (!sendTransport) {
+              // Transport de envío
+              sendTransport = device.createSendTransport(payload);
+              setupSendTransport(USER_ID);
+            } else if (!recvTransport) {
+              // Transport de recepción
+              recvTransport = device.createRecvTransport(payload);
+              setupRecvTransport(USER_ID);
+            }
+            break;
+
+          case 'connect-transport':
+            console.log('DTLS conectado para transporte');
+            break;
+
+          case 'produce':
+            // Recibimos ID de producer del servidor
+            producerId = payload.id;
+            console.log('Producer creado:', producerId);
+            break;
+          case 'new-producer':
+            remoteProducerPeerId = payload.producerPeerId;
+            remoteProducerId = payload.producerId;
+            // CREAR transporte de recepción
+            socket.send(JSON.stringify({
+              type: 'create-transport',
+              sender: USER_ID,
+              payload: {}
+            }));
+            break;
+
+          case 'consume':
+            const consumerParams = payload;
+            const consumer = await recvTransport.consume({
+              id: consumerParams.id,
+              producerId: consumerParams.producerId,
+              kind: consumerParams.kind,
+              rtpParameters: consumerParams.rtpParameters
+            });
+            remoteVideo.srcObject = new MediaStream([consumer.track]);
+            console.log('Consumer creado:', consumer.id);
+            break;
+
+            // Mostrar en <video>
+            remoteVideo.srcObject = new MediaStream([consumer.track]);
+            console.log('Consumer creado:', consumer.id);
+            break;
+        }
+      };
+
+      socket.onerror = err => console.error('WS error:', err);
+      socket.onclose = () => console.log('WS cerrado');
+
+      // Helpers
+      function setupSendTransport(USER_ID) {
+        sendTransport.on('connect', ({ dtlsParameters }, callback, errback) => {
+          socket.send(JSON.stringify({
+            type: 'connect-transport', sender: USER_ID,
+            payload: { transportId: sendTransport.id, dtlsParameters }
+          }));
+          callback();
+        });
+        sendTransport.on('produce', ({ kind, rtpParameters }, callback) => {
+          // 1) envío al servidor
+          socket.send(JSON.stringify({
+            type: 'produce',
+            sender: USER_ID,
+            payload: {
+              transportId: sendTransport.id,
+              kind,
+              rtpParameters
+            }
+          }));
+          // 2) espero el mensaje WS con action 'produce' para setear producerId
+          socket.once('message', ({ data }) => {
+            const msg = JSON.parse(data);
+            if (msg.action === 'produce') {
+              producerId = msg.data.id;
+              callback({ id: producerId });
+            }
+          });
+        });
+
+        // Comenzar a producir
+        const track = localStream.getTracks().find(t => t.kind === 'video');
+        sendTransport.produce({ track });
+      }
+
+      function setupRecvTransport(USER_ID) {
+        recvTransport.on('connect', ({ dtlsParameters }, callback) => {
+          socket.send(JSON.stringify({
+            type: 'connect-transport',
+            sender: USER_ID,
+            payload: {
+              transportId: recvTransport.id,
+              dtlsParameters
+            }
+          }));
+          callback();
+        });
+
+        // ¡AÑADIR ESTO! pido al servidor los parámetros de consume
+        socket.send(JSON.stringify({
+          type: 'consume',
+          sender: USER_ID,
+          payload: {
+            transportId: recvTransport.id,
+            producerId: remoteProducerId,
+            rtpCapabilities: device.rtpCapabilities
+          }
+        }));
+      }
+
+    };
+  </script>
+</body>
+
+</html>

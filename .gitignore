@@ -4,3 +4,4 @@
 *.project
 .settings/
 .sonarlint/
+/node_modules
