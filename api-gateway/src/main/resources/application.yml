@@ -17,16 +17,15 @@ spring:
           uri: lb://meeting-service
           predicates:
             - Path=/meeting/**
-        - id: 
+        - id: signaling-ws
           uri: lb:ws://signaling-service
           predicates:
-          - Path=/ws/meeting/**
-          - Header=Connection, Upgrade 
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: MyCircuitBreaker
-                fallbackUri: http://localhost:8080/fallback
+            - Path=/ws/meeting/**
+#          filters:
+#            - name: CircuitBreaker
+#              args:
+#                name: MyCircuitBreaker
+#                fallbackUri: http://localhost:8080/fallback
 
 resilience4j:
   circuitbreaker:

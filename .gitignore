@@ -7,3 +7,4 @@
 node_modules/
 .idea/  
 git-local-config/
+/node_modules
